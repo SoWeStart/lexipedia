@@ -1,5 +1,5 @@
-import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, titleWords, encodeTitle, decodeTitle} from './core.js';
-import {conceptBatch} from './concepts.js';
+import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, titleWords, encodeTitle, decodeTitle} from './core.js?v=4';
+import {conceptBatch} from './concepts.js?v=4';
 import {strings} from './language.js';
 import {titleKey} from './pool.js';
 import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js';
@@ -110,7 +110,7 @@ function prepareSemantic(){
 }
 function ensureWorker(){
   try{
-    worker=new Worker(new URL('./semantic-worker.js',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./semantic-worker.js?v=4',import.meta.url),{type:'module'});
     worker.onmessage=e=>{
       const d=e.data;
       if(d.epoch!==epoch)return;

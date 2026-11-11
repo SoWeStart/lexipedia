@@ -6,8 +6,8 @@ ROOT=Path(__file__).resolve().parents[1]
 html=(ROOT/'index.html').read_text()
 css=(ROOT/'styles.css').read_text()
 css=re.sub(r'@import[^;]+;','',css)
-html=html.replace('<link rel="stylesheet" href="./styles.css">','<style>'+css+'</style>')
-html=re.sub(r'<script type="module" src="./src/app.js"></script>','',html)
+html=re.sub(r'<link rel="stylesheet" href="\./styles\.css[^"]*">',lambda _: '<style>'+css+'</style>',html)
+html=re.sub(r'<script type="module" src="\./src/app\.js[^"]*"></script>','',html)
 modules=['core','concepts','articles','language','pool','wiki','app']
 source='\n'.join((ROOT/f'src/{name}.js').read_text() for name in modules)
 source=re.sub(r'^import .*?;\s*$','',source,flags=re.MULTILINE)

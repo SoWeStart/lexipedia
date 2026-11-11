@@ -1,6 +1,6 @@
 /* Isolates model loading/inference from the UI thread. All inference is local in the browser. */
-import {conceptBatch} from './concepts.js';
-import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, calibratedEmbeddingScore} from './core.js';
+import {conceptBatch} from './concepts.js?v=4';
+import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, calibratedEmbeddingScore} from './core.js?v=4';
 
 let currentEpoch=0, targetWords=[], extractedVectors=new Map(), extractor=null, extractorPromise=null, modelReady=false;
 
