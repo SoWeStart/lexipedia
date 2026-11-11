@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {isSemanticCandidate, calibratedEmbeddingScore, createRound, applyGuess, tokenState, mergeHints} from '../src/core.js';
+import {isSemanticCandidate, calibratedEmbeddingScore, createRound, applyGuess, tokenState, mergeHints, useClue, revealRound, CLUE_LIMIT, getTitleProgress} from '../src/core.js';
 import {conceptBatch} from '../src/concepts.js';
 
 test('function words never become semantic hints even with pathological model scores',()=>{
@@ -81,4 +81,34 @@ test('calendar hints work without the model and preserve the function-word filte
   assert.ok(conceptBatch('summer',['winter']).winter>=.38);
   assert.ok(conceptBatch('blue',['red']).red>=.38);
   assert.equal(conceptBatch('september',['monday']).monday,0);
+});
+
+test('German clues use German categories and function-word filtering',()=>{
+  const round=createRound({title:'November',extract:'November ist ein Monat, 1701 war ein Jahr.',language:'de'});
+  applyGuess(round,'September',{...conceptBatch('September',['november'],'de'),ist:1,ein:1});
+  assert.equal(tokenState(round,'November').type,'near');
+  assert.equal(tokenState(round,'ist').type,'hidden');
+  assert.equal(tokenState(round,'ein').type,'hidden');
+  assert.ok(conceptBatch('Monate',['November'],'de').November>=.38);
+  applyGuess(round,'1700');
+  assert.equal(tokenState(round,'1701').type,'near');
+  assert.equal(applyGuess(round,'NOVEMBER').won,true);
+});
+
+test('three individual letter clues persist and revealing the article ends the round without a win',()=>{
+  const round=createRound({title:'Vulkan',extract:'Ein Vulkan hat Lava.',language:'de'});
+  assert.equal(useClue(round,'t:0'),true);
+  assert.equal(useClue(round,'t:0'),false);
+  assert.equal(tokenState(round,'Vulkan',true).type,'hidden');
+  assert.equal(useClue(round,'p:0:4'),true);
+  const restored=JSON.parse(JSON.stringify(round));
+  assert.equal(useClue(restored,'p:0:6'),true);
+  assert.equal(restored.clues.length,CLUE_LIMIT);
+  assert.equal(useClue(restored,'p:0:0'),false);
+  assert.equal(revealRound(restored),true);
+  assert.equal(tokenState(restored,'Vulkan',true).type,'revealed');
+  assert.equal(tokenState(restored,'Lava').type,'revealed');
+  assert.equal(getTitleProgress(restored).complete,false);
+  assert.equal(applyGuess(restored,'Vulkan').accepted,false);
+  assert.equal(revealRound(restored),false);
 });

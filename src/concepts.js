@@ -1,4 +1,4 @@
-import {normalizeWord,stemWord} from './core.js?v=6';
+import {normalizeWord,stemWord} from './core.js?v=7';
 
 /** Offline semantic fallback and ontology augmentation. This is a directed, weighted lexical graph, not a pretrained embedding. */
 const GROUPS = [
@@ -58,8 +58,9 @@ const PEER_GROUPS = [
   ['continent','africa antarctica asia europe oceania'],
   ['planet','mercury venus earth mars jupiter saturn uranus neptune'],
 ];
-const graph = new Map();
-function edge(a,b,weight){
+const graphs={en:new Map(),de:new Map()};
+function edge(a,b,weight,language='en'){
+  const graph=graphs[language];
   if(!graph.has(a))graph.set(a,new Map());
   graph.get(a).set(b,Math.max(weight,graph.get(a).get(b)||0));
 }
@@ -76,12 +77,53 @@ for(const [category,members] of PEER_GROUPS){
 }
 edge('day','weekday',.76);edge('weekday','day',.76);
 edge('calendar','month',.78);edge('month','calendar',.72);
+const GERMAN_GROUPS=[
+  ['monat','januar februar märz april mai juni juli august september oktober november dezember'],
+  ['wochentag','montag dienstag mittwoch donnerstag freitag samstag sonntag'],
+  ['jahreszeit','frühling sommer herbst winter'],
+  ['richtung','norden osten süden westen nordost südost südwest nordwest'],
+  ['zeit','sekunde minute stunde tag woche monat jahr jahrzehnt jahrhundert jahrtausend'],
+  ['farbe','rot orange gelb grün blau violett rosa braun grau schwarz weiß'],
+  ['kontinent','europa asien afrika antarktika australien amerika'],
+  ['planet','merkur venus erde mars jupiter saturn uranus neptun'],
+  ['tier','säugetier vogel fisch reptil amphibie insekt'],
+  ['säugetier','mensch hund katze pferd wal delfin elefant fledermaus'],
+  ['insekt','mücke fliege biene ameise schmetterling käfer wespe libelle'],
+  ['vogel','adler eule spatz papagei pinguin feder nest'],
+  ['pflanze','baum blume gras moos farn bambus kaktus'],
+  ['baum','eiche kiefer weide birke buche ahorn wurzel rinde'],
+  ['meer','ozean küste insel riff koralle fisch wal'],
+  ['gewässer','fluss see teich strom bach meer'],
+  ['wetter','regen schnee wind sturm wolke nebel gewitter temperatur'],
+  ['gestein','granit basalt kalkstein marmor schiefer sandstein'],
+  ['metall','eisen kupfer gold silber zink zinn aluminium stahl'],
+  ['sprache','wort satz grammatik schrift dialekt übersetzung'],
+  ['musik','instrument lied melodie rhythmus komponist orchester'],
+  ['instrument','klavier gitarre geige trompete flöte trommel'],
+  ['sport','fußball basketball tennis handball volleyball schwimmen laufen'],
+  ['medizin','arzt krankenhaus krankheit impfung therapie operation'],
+  ['krankheit','infektion virus bakterie fieber malaria krebs grippe'],
+  ['staat','regierung parlament gesetz wahl politik demokratie'],
+  ['verkehr','auto zug flugzeug schiff fahrrad bus'],
+  ['computer','prozessor speicher algorithmus programm software daten'],
+  ['physik','energie kraft bewegung strom magnetismus licht schall'],
+  ['mathematik','algebra geometrie zahl gleichung statistik wahrscheinlichkeit'],
+  ['küche','essen brot käse obst gemüse fleisch gewürz'],
+  ['obst','apfel birne banane orange pfirsich traube kirsche'],
+];
+for(const [category,members] of GERMAN_GROUPS){
+  for(const member of members.split(' ')){
+    edge(category,member,.8,'de');edge(member,category,.68,'de');
+  }
+}
+edge('kalender','monat',.78,'de');edge('monat','kalender',.72,'de');
 /** Avoid transitive false positives through encyclopedic umbrella categories.
  * For example, mathematics -> science -> biology must not be treated as a
  * close relationship, even though both disciplines share the science parent. */
 const BROAD_HUBS = new Set('science nature biology geography mathematics physics chemistry music religion sport art medicine technology environment history'.split(' '));
 /** Short, weighted lexical paths only: no unrestricted graph diffusion. */
-function conceptNeighbors(word){
+function conceptNeighbors(word,language){
+  const graph=graphs[language];
   const seen=new Map([[word,1]]);
   if(!graph.has(word))return seen;
   let frontier=new Map(seen);
@@ -100,16 +142,20 @@ function conceptNeighbors(word){
   }
   return seen;
 }
-export function conceptSimilarity(a,b){
-  const neighbors=conceptNeighbors(conceptKey(a));
-  return neighbors.get(conceptKey(b))??0;
+export function conceptSimilarity(a,b,language='en'){
+  const neighbors=conceptNeighbors(conceptKey(a,language),language);
+  return neighbors.get(conceptKey(b,language))??0;
 }
-export function conceptBatch(guess,targets){
-  const neighbors=conceptNeighbors(conceptKey(guess));
-  return Object.fromEntries(targets.map(target=>[target,neighbors.get(conceptKey(target))??0]));
+export function conceptBatch(guess,targets,language='en'){
+  const neighbors=conceptNeighbors(conceptKey(guess,language),language);
+  return Object.fromEntries(targets.map(target=>[target,neighbors.get(conceptKey(target,language))??0]));
 }
-function conceptKey(value){
+function conceptKey(value,language){
   const word=normalizeWord(value);
-  const stem=stemWord(word);
-  return !graph.has(word) && graph.has(stem)?stem:word;
+  const graph=graphs[language];
+  if(graph.has(word))return word;
+  const alternatives=language==='de'
+    ? ['en','er','e','n','s'].filter(ending=>word.endsWith(ending)).map(ending=>word.slice(0,-ending.length))
+    : [stemWord(word)];
+  return alternatives.find(candidate=>graph.has(candidate))??word;
 }

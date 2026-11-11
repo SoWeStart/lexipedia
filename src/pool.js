@@ -57,15 +57,74 @@ export const POOL = {
   ],
 };
 
+export const GERMAN_POOL={
+  physics:[
+    ['Magnetismus','Regenbogen','Gravitation'],
+    ['Doppler-Effekt','Oberflächenspannung','Lichtbrechung','Wärmeleitung','Supraleitung','Hebel (Physik)'],
+    ['Quantenverschränkung','Tscherenkow-Strahlung','Bose-Einstein-Kondensat'],
+  ],
+  chemistry:[
+    ['Sauerstoff','Gold','Rost'],
+    ['Katalyse','Destillation','Elektrolyse','Silicium','Legierung','Essigsäure'],
+    ['Aromaten','Stöchiometrie','Enthalpie'],
+  ],
+  mathematics:[
+    ['Geometrie','Symmetrie','Primzahl'],
+    ['Logarithmus','Fraktal','Fibonacci-Folge','Satz des Pythagoras','Spieltheorie','Normalverteilung'],
+    ['Fourier-Transformation','Mengenlehre','Topologie (Mathematik)'],
+  ],
+  nature:[
+    ['Pinguine','Kakteen','Honigbienen'],
+    ['Axolotl','Seeotter','Schneeleopard','Ginkgo','Venusfliegenfalle','Mangrove (Ökosystem)'],
+    ['Bärtierchen','Nesseltiere','Kopffüßer'],
+  ],
+  medicine:[
+    ['Allergie','Schlaf','Blut'],
+    ['Insulin','Bluttransfusion','Placebo','Sichelzellkrankheit','Elektrokardiogramm','Antibiotikum'],
+    ['Apoptose','Autophagozytose','Osmoregulation'],
+  ],
+  earth:[
+    ['Vulkan','Erdbeben','Mond'],
+    ['Baikalsee','Atacama-Wüste','Anden','Beringstraße','Plattentektonik','Pulsar'],
+    ['Hadley-Zelle','Kuipergürtel','Chandrasekhar-Grenze'],
+  ],
+  history:[
+    ['Seidenstraße','Französische Revolution','Römisches Reich'],
+    ['Haitianische Revolution','Meiji-Restauration','Dreißigjähriger Krieg','Versailler Vertrag','Mogulreich','Berliner Luftbrücke'],
+    ['Westfälischer Friede','Rosenkriege','Taiping-Aufstand'],
+  ],
+  people:[
+    ['Marie Curie','Isaac Newton','Frida Kahlo'],
+    ['Ada Lovelace','Hannah Arendt','Florence Nightingale','Rachel Carson','Johannes Gutenberg','Srinivasa Ramanujan'],
+    ['Mary Anning','Émilie du Châtelet','Sofja Wassiljewna Kowalewskaja'],
+  ],
+  technology:[
+    ['Fahrrad','Mikroskop','Dampfmaschine'],
+    ['Kreiselinstrument','Sextant','Sonar','Transistor','Barometer','Lithium-Ionen-Akkumulator'],
+    ['Stirlingmotor','Interferometrie','Fotolithografie (Halbleitertechnik)'],
+  ],
+  culture:[
+    ['Ballett','Jazz','Origami'],
+    ['Bauhaus','Holzschnitt','Impressionismus','Haiku','Gotik','Film noir'],
+    ['Chiaroscuro','Kontrapunkt','Pointillismus'],
+  ],
+  society:[
+    ['Demokratie','Inflation','Buddhismus'],
+    ['Zoroastrismus','Sufismus','Föderalismus','Fechten','Fermentation','Kognitive Dissonanz'],
+    ['Merkantilismus','Animismus','Utilitarismus'],
+  ],
+};
+
 export function titleKey(title){
   return title.normalize('NFKC').replace(/[‘’]/g,"'").replace(/_/g,' ').trim().toLowerCase();
 }
 
-export function candidateOrder(history, random=Math.random){
+export function candidateOrder(history, random=Math.random, language='en'){
+  const pool=language==='de'?GERMAN_POOL:POOL;
   const keys=[...new Set(history.map(titleKey))];
-  const recentTopics=new Set(keys.slice(0,2).map(key=>topicByTitle.get(key)));
+  const recentTopics=new Set(keys.slice(0,2).map(key=>topicsByLanguage[language].get(key)));
   const ranked=[];
-  for(const [topic,tiers] of Object.entries(POOL)){
+  for(const [topic,tiers] of Object.entries(pool)){
     for(const [tier,titles] of tiers.entries()){
       for(const title of titles){
         const position=keys.indexOf(titleKey(title));
@@ -84,5 +143,6 @@ export function candidateOrder(history, random=Math.random){
   }).map(entry=>entry.title);
 }
 
-const topicByTitle=new Map(Object.entries(POOL).flatMap(([topic,tiers])=>
-  tiers.flat().map(title=>[titleKey(title),topic])));
+const topicsByLanguage=Object.fromEntries(Object.entries({en:POOL,de:GERMAN_POOL}).map(([language,pool])=>[
+  language,new Map(Object.entries(pool).flatMap(([topic,tiers])=>tiers.flat().map(title=>[titleKey(title),topic])))
+]));

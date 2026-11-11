@@ -1,16 +1,16 @@
 import {ARTICLES, PRACTICE} from './articles.js';
-import {seedIndex} from './core.js';
-import {candidateOrder,titleKey} from './pool.js';
+import {seedIndex} from './core.js?v=7';
+import {candidateOrder,titleKey} from './pool.js?v=7';
 
-const API='https://en.wikipedia.org/w/api.php';
+function wikiHost(language){return language==='de'?'https://de.wikipedia.org':'https://en.wikipedia.org';}
 class UnsuitableArticle extends Error {}
-function queryUrl(args){ return `${API}?${new URLSearchParams({action:'query',prop:'extracts|pageimages|info|pageprops',ppprop:'disambiguation',exintro:'1',explaintext:'1',exchars:'1200',pithumbsize:'600',inprop:'url',redirects:'1',format:'json',formatversion:'2',origin:'*',...args})}`; }
-export function parseWikiResponse(json,{curated=false}={}){
+function queryUrl(args,language){ return `${wikiHost(language)}/w/api.php?${new URLSearchParams({action:'query',prop:'extracts|pageimages|info|pageprops',ppprop:'disambiguation',exintro:'1',explaintext:'1',exchars:'1200',pithumbsize:'600',inprop:'url',redirects:'1',format:'json',formatversion:'2',origin:'*',...args})}`; }
+export function parseWikiResponse(json,{curated=false,language='en'}={}){
   if(json?.error)throw new Error('Wikipedia API error');
   const p=json?.query?.pages?.[0];
   if(!p || p.missing || !p.title || !p.extract)throw new UnsuitableArticle('Wikipedia returned no suitable article');
   const text=p.extract.replace(/\[[0-9]+\]/g,'').replace(/\n{3,}/g,'\n\n').trim();
-  if(text.length<220 || text.length>6000 || p.title.startsWith('List of ') || p.title.includes('(disambiguation)'))throw new UnsuitableArticle('Unsuitable Wikipedia introduction');
+  if(text.length<220 || text.length>6000 || /^(List of |Liste )|\((disambiguation|Begriffsklärung)\)$/i.test(p.title))throw new UnsuitableArticle('Unsuitable Wikipedia introduction');
   if(curated){
     const words=text.toLowerCase().match(/\p{L}{3,}/gu)??[];
     if(p.ns!==0 || Object.hasOwn(p.pageprops??{},'disambiguation') ||
@@ -18,27 +18,27 @@ export function parseWikiResponse(json,{curated=false}={}){
       throw new UnsuitableArticle('Wikipedia article does not meet pool quality criteria');
     }
   }
-  return {title:p.title,extract:text,source:p.fullurl||`https://en.wikipedia.org/wiki/${encodeURIComponent(p.title.replaceAll(' ','_'))}`,image:p.thumbnail?.source||''};
+  return {title:p.title,extract:text,source:p.fullurl||`${wikiHost(language)}/wiki/${encodeURIComponent(p.title.replaceAll(' ','_'))}`,image:p.thumbnail?.source||'',language};
 }
 async function request(url,signal,options){
   const response=await fetch(url,{signal,cache:'no-cache'});
   if(!response.ok)throw new Error(`Wikipedia HTTP ${response.status}`);
   return parseWikiResponse(await response.json(),options);
 }
-export async function fetchTitle(title,signal){
-  return request(queryUrl({titles:title}),signal);
+export async function fetchTitle(title,signal,language='en'){
+  return request(queryUrl({titles:title},language),signal,{language});
 }
-export async function fetchCuratedArticle(history,signal,random=Math.random){
+export async function fetchCuratedArticle(history,signal,random=Math.random,language='en'){
   const played=new Map([...new Set(history.map(titleKey))].map((key,index)=>[key,index]));
   const tried=new Set();
   let oldest;
-  const order=candidateOrder(history,random);
+  const order=candidateOrder(history,random,language);
   for(const title of order){
     signal?.throwIfAborted();
     if(tried.has(titleKey(title)))continue;
     let article;
     try {
-      article=await request(queryUrl({titles:title}),signal,{curated:true});
+      article=await request(queryUrl({titles:title},language),signal,{curated:true,language});
     }catch(error){
       if(!(error instanceof UnsuitableArticle) || signal?.aborted)throw error;
       continue;
@@ -66,4 +66,10 @@ export async function fetchSeededArticle(seed,signal){
   }
   throw new Error('Wikipedia temporarily unavailable');
 }
-export function practiceArticle(){return {...PRACTICE};}
+const GERMAN_PRACTICE={
+  title:'Vulkan',
+  source:'',
+  seed:'practice',
+  extract:'Ein Vulkan ist eine Öffnung in der Kruste eines Planeten. Durch diese Öffnung können Lava, Gase und Asche aus dem Inneren an die Oberfläche gelangen. Viele Vulkane liegen dort, wo sich Erdplatten aufeinander zu oder voneinander weg bewegen. Bei einem Ausbruch können sich Lavaströme bilden und Aschewolken entstehen. Unter Wasser kann ein Vulkan im Laufe der Zeit eine Insel aufbauen. Forschende beobachten Erdbeben, Gase und Veränderungen an der Oberfläche, um mögliche Ausbrüche früh zu erkennen.',
+};
+export function practiceArticle(language='en'){return {...(language==='de'?GERMAN_PRACTICE:PRACTICE),language};}

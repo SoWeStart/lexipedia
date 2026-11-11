@@ -1,5 +1,5 @@
-const CACHE='lexipedia-shell-v7';
-const FILES=['./','./index.html','./styles.css?v=6','./src/app.js?v=6','./src/language.js','./src/core.js','./src/core.js?v=6','./src/articles.js','./src/pool.js','./src/wiki.js','./src/concepts.js?v=6','./src/semantic-worker.js?v=6','./manifest.webmanifest','./assets/icon.svg'];
+const CACHE='lexipedia-shell-v8';
+const FILES=['./','./index.html','./styles.css?v=7','./src/app.js?v=7','./src/language.js?v=7','./src/core.js?v=7','./src/articles.js','./src/pool.js?v=7','./src/wiki.js?v=7','./src/concepts.js?v=7','./src/semantic-worker.js?v=7','./manifest.webmanifest','./assets/icon.svg'];
 self.addEventListener('install',evt=>{evt.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)));self.skipWaiting();});
 self.addEventListener('activate',evt=>{evt.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))));self.clients.claim();});
 self.addEventListener('fetch',evt=>{

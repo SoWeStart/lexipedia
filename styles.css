@@ -27,3 +27,8 @@
 .message{min-height:0}
 .history-panel:has(.history-content:empty),.mobile-history-toggle:has(+ .history-panel .history-content:empty){display:none}
 .dialog-inner ul{padding-inline-start:1.25em;line-height:1.6}
+.toolbar-left button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.selecting-clue .word:is(.hidden,.near):not(.letter-clue){outline:1px dashed var(--accent);outline-offset:2px}
+.word.letter-clue,.masked-title .word.letter-clue{height:auto;padding:0 .28em;color:#ffe1a1;background:#313530;font-weight:700}
+.word.letter-clue.length-peek{font-size:inherit}
+.word.revealed,.masked-title .word.revealed{display:inline;color:inherit;background:none;padding:0;margin:0}

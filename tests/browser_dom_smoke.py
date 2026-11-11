@@ -19,7 +19,11 @@ fixture='''{
 }'''
 prelude="""
 window.history.replaceState=function(){};
-window.fetch=async()=>({ok:true,status:200,json:async()=>MOCK_FIXTURE});
+window.fetch=async url=>({
+ ok:true,status:200,json:async()=>new URL(url).hostname==='de.wikipedia.org'
+ ?{query:{pages:[{ns:0,title:'Vulkan',extract:'Ein Vulkan ist eine Öffnung in der Kruste eines Planeten. Durch diese Öffnung können Lava, Gase und Asche aus dem Inneren an die Oberfläche gelangen. Viele Vulkane liegen dort, wo sich Erdplatten aufeinander zu oder voneinander weg bewegen. Bei einem Ausbruch können sich Lavaströme bilden und Aschewolken entstehen. Unter Wasser kann ein Vulkan im Laufe der Zeit eine Insel aufbauen. Forschende beobachten Erdbeben, Gase und Veränderungen an der Oberfläche, um mögliche Ausbrüche früh zu erkennen.'}]}}
+ :MOCK_FIXTURE
+});
 class TestWorker {constructor(){this.onmessage=null;}
  postMessage(d){const send=msg=>setTimeout(()=>this.onmessage?.({data:{epoch:d.epoch,...msg}}),5);
  if(d.type==='init'){this.text=d.text;send({type:'ready',mode:'basic',detail:'Grundmodus'});}
@@ -40,7 +44,17 @@ with sync_playwright() as playwright:
   page.set_content(html,wait_until='domcontentloaded')
   page.add_script_tag(content=script)
   page.wait_for_selector('#guessInput:not([disabled])',timeout=12000)
+  assert page.locator('#guessInput').get_attribute('placeholder')=='Deutsches Wort'
+  page.locator('#clueButton').click()
+  page.locator('#maskedTitle .word.hidden').first.click()
+  assert page.locator('#maskedTitle .letter-clue').inner_text()=='V…'
+  assert page.locator('#clueCount').inner_text()=='2'
+  page.locator('#revealButton').click()
+  page.locator('#confirmReveal').click()
+  assert page.locator('#maskedTitle').inner_text()=='Vulkan'
+  assert page.locator('#articleBadge').inner_text()=='AUFGELÖST'
   page.get_by_role('button',name='English',exact=True).click()
+  page.wait_for_selector('#guessInput:not([disabled])',timeout=12000)
   assert page.locator('html').get_attribute('lang')=='en'
   assert page.locator('#guessInput').get_attribute('placeholder')=='English word'
   assert page.locator('.word.hidden').count()>3

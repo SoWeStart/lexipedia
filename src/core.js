@@ -48,9 +48,10 @@ const FUNCTION_WORDS = new Set(`
  about above below beside besides beyond within via per vs etc also just even still already now very quite rather too enough
  i'm you're it's we're they're isn't aren't wasn't weren't don't doesn't didn't hasn't haven't hadn't can't won't couldn't shouldn't wouldn't
 `.trim().split(/\s+/));
-export function isSemanticCandidate(value) {
+const GERMAN_FUNCTION_WORDS=new Set(`der die das des dem den ein eine einer eines einem einen und oder aber doch denn sowie als wenn dass weil ob wie was wer wen wem wessen welcher welche welches ich du er sie es wir ihr mich dich sich uns euch mir dir ihm ihnen mein dein sein unser euer ist sind bist bin war waren wurde wurden wird werden gewesen haben hat hatte hatten kann können konnte muss müssen soll sollte darf dürfen mag möchte nicht kein keine auch nur sehr noch schon mehr man mit von vom aus bei auf über unter nach vor zur zum bis durch für gegen ohne seit zwischen über um an am im in zu so hin her dort hier dann dabei dazu damit darin davon diese dieser dieses jene jedem alle jeder einige etwas solche ersten erste zweiter zweite`.split(' '));
+export function isSemanticCandidate(value,language='en') {
   const w=normalizeWord(value);
-  if (!w || FUNCTION_WORDS.has(w)) return false;
+  if (!w || (language==='de'?GERMAN_FUNCTION_WORDS:FUNCTION_WORDS).has(w)) return false;
   if (/^\d+$/.test(w)) return false;
   // Short terms are often pronouns, auxiliary verbs or unreliable model subwords.
   return [...w].length>=3;
@@ -63,10 +64,10 @@ export function calibratedEmbeddingScore(raw) {
   return Math.min(0.93, Math.max(0, (cosine-0.55)*2.75));
 }
 
-export function sameWord(a,b) {
+export function sameWord(a,b,language='en') {
   const x=normalizeWord(a), y=normalizeWord(b);
   if (!x || !y) return false;
-  return x === y || stemWord(x) === stemWord(y);
+  return x === y || (language==='en' && stemWord(x) === stemWord(y));
 }
 
 export function tokenize(text) {
@@ -76,13 +77,26 @@ export function tokenize(text) {
 export function isWord(part) { return /^[\p{L}\p{N}]/u.test(part); }
 export function titleWords(title) { return tokenize(title).filter(isWord).map(normalizeWord); }
 
-export function createRound({title, extract, source, image='', seed=null}) {
+export const CLUE_LIMIT=3;
+export function createRound({title, extract, source, image='', seed=null, language='en'}) {
   if (!title || !extract) throw new TypeError('Title and introduction required');
-  return {title, extract, source, image, seed, guesses:[], hints:{}, startedAt:Date.now(), finishedAt:null};
+  return {title, extract, source, image, seed, language, guesses:[], hints:{}, clues:[], startedAt:Date.now(), finishedAt:null};
+}
+export function useClue(round,key){
+  const clues=round.clues??=[];
+  if(round.finishedAt || clues.length>=CLUE_LIMIT || clues.includes(key))return false;
+  clues.push(key);
+  return true;
+}
+export function revealRound(round){
+  if(round.finishedAt)return false;
+  round.revealed=true;
+  round.finishedAt=Date.now();
+  return true;
 }
 export function getTitleProgress(round) {
   const ts=titleWords(round.title);
-  const found=ts.map(t=>round.guesses.some(g=>sameWord(g,t)));
+  const found=ts.map(t=>round.guesses.some(g=>sameWord(g,t,round.language)));
   return {total:ts.length, found:found.filter(Boolean).length, complete:found.length>0 && found.every(Boolean)};
 }
 export function applyGuess(round, guess, scores={}) {
@@ -108,10 +122,10 @@ export function mergeHints(round,guess,scores={}) {
     }
     return;
   }
-  if(!isSemanticCandidate(word))return;
+  if(!isSemanticCandidate(word,round.language))return;
   for (const [target, rawScore] of Object.entries(scores)) {
     const targetWord=normalizeWord(target);
-    if (!isSemanticCandidate(targetWord) || sameWord(word,targetWord)) continue;
+    if (!isSemanticCandidate(targetWord,round.language) || sameWord(word,targetWord,round.language)) continue;
     const score=Math.min(1,Math.max(0,Number(rawScore)||0));
     if(score>=.38)storeHint(round,targetWord,word,score);
   }
@@ -124,7 +138,8 @@ function storeHint(round,target,guess,score){
 }
 export function tokenState(round, token, inTitle=false) {
   if (!isWord(token)) return {type:'punct', label:token};
-  if (round.guesses.some(g=>sameWord(g,token))) return {type:'exact', label:token};
+  if (round.revealed) return {type:'revealed', label:token};
+  if (round.guesses.some(g=>sameWord(g,token,round.language))) return {type:'exact', label:token};
   if (inTitle) return {type:'hidden', label:token};
   const key=normalizeWord(token);
   const hint=Object.hasOwn(round.hints,key)?round.hints[key]:undefined;
@@ -137,7 +152,7 @@ export function formatElapsed(ms) {
 }
 export function titleMasked(round) {
   return tokenize(round.title).map(part=>isWord(part)?(
-    round.guesses.some(g=>sameWord(g,part)) ? part : '▰'.repeat(Math.max(2,Math.min(11,part.length)))
+    round.revealed || round.guesses.some(g=>sameWord(g,part,round.language)) ? part : '▰'.repeat(Math.max(2,Math.min(11,part.length)))
   ):part).join('');
 }
 export function encodeTitle(title) {

@@ -5,7 +5,7 @@ A free, mobile-friendly, Wikipedia article word-discovery game with unlimited ro
 ## Features
 
 - No sign-up, no subscriptions, no daily puzzle limit
-- Curated Wikipedia articles and reproducible challenges via a shareable link
+- Curated German and English Wikipedia articles and reproducible challenges via a shareable link
 - Word-by-word reveal, case-insensitive morphological matching (`fly` / `flies`, `mosquito` / `mosquitoes`)
 - Semantic hints for every hidden word in the article, with more relevant guesses replacing previous hints
 - No semantic hints in the article title: all title words must be guessed exactly
@@ -15,8 +15,8 @@ A free, mobile-friendly, Wikipedia article word-discovery game with unlimited ro
 
 ## How it works
 
-1. The browser requests a suitable introduction through the official English Wikipedia Action API (CORS permitted via `origin=*`). The article title and introduction are held locally for the round.
-2. Each guess is first checked for exact matches and common English word inflections.
+1. The browser requests a suitable introduction from the selected German or English Wikipedia edition. Shared links retain the edition, and each language has its own round history.
+2. Each guess is checked for exact matches. English rounds also match common word inflections.
 3. A Web Worker computes semantic similarity between the guessed word and each unique article word. It uses `Xenova/all-MiniLM-L6-v2` (Apache 2.0) via Transformers.js (also Apache 2.0) and conservative, calibrated cosine similarity. Grammatical function words are excluded from semantic hints (but can still be revealed by exact guesses).
 4. A short-path lexical graph (with broad-topic hub restrictions to avoid unrelated links) supplements the scores and keeps a limited fallback available if the model cannot load. **The fallback is deliberately less comprehensive than a pretrained semantic model.**
 5. For each token, the highest similarity among previous guesses is displayed. The player wins only when all article title words are guessed exactly.
@@ -25,7 +25,8 @@ A free, mobile-friendly, Wikipedia article word-discovery game with unlimited ro
 
 - First model download is about 23 MB, plus Transformers.js/WASM dependencies, and can take time on mobile devices. The fallback mode remains playable while the download runs.
 - Sentence embeddings are designed mainly for sentences, so **word-level similarity needs evaluation**. Scores are not probabilities. This is an MVP requiring broader model-quality and mobile-device testing before claiming parity with Pedantle.
-- The semantic filter deliberately rejects weaker correlations to reduce misleading hints; it may also omit weak but valid associations. The basic fallback uses a curated conceptual graph and cannot meaningfully score every English word.
+- The semantic filter rejects weaker correlations. Language-specific lexical graphs provide hints before the English or multilingual model is ready.
+- Hint mode reveals the first letter of a selected word, up to three times per round. Reveal shows the title and introduction and ends the round without a win.
 - Shared links supply the same article but there is **no synchronized live multiplayer** or server-verified high-score leaderboard. Friends compare results manually.
 - New rounds draw from a curated pool across eleven topics. Selection favors intermediate articles and gives recently played topics less weight. The game checks the current Wikipedia introduction and prefers unplayed articles, then reuses the least recently played eligible articles. The finite pool supports unlimited rounds.
 - Shared links identify the selected article and round. The title is encoded, not encrypted. Existing seed links still use the original pool.
