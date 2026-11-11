@@ -31,6 +31,13 @@ test('tokenizer preserves article punctuation and spaces',()=>{
   assert.ok(tokens.some(t=>!isWord(t)));
 });
 
+test('ordinary words that share object property names can receive hints',()=>{
+  const round=createRound({title:'Programming',extract:'A constructor creates an instance.'});
+  assert.equal(tokenState(round,'constructor').type,'hidden');
+  applyGuess(round,'class',{constructor:0.8});
+  assert.deepEqual(tokenState(round,'constructor'),{type:'near',label:'class',score:0.8});
+});
+
 test('title needs exact guesses; near scores never reveal title',()=>{
   const round=createRound({title:'Mosquito',extract:'Mosquitoes are small insects. A mosquito can fly.'});
   assert.deepEqual(getTitleProgress(round),{total:1,found:0,complete:false});

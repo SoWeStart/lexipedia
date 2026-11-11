@@ -103,7 +103,8 @@ export function mergeHints(round,guess,scores={}) {
     const targetWord=normalizeWord(target);
     if (!isSemanticCandidate(word) || !isSemanticCandidate(targetWord) || sameWord(word,targetWord)) continue;
     const score=Math.min(1,Math.max(0,Number(rawScore)||0));
-    if (score >= 0.38 && (!round.hints[targetWord] || score > round.hints[targetWord].score)) {
+    const previous=Object.hasOwn(round.hints,targetWord)?round.hints[targetWord]:undefined;
+    if (score >= 0.38 && (!previous || score > previous.score)) {
       round.hints[targetWord] = {guess:word, score};
     }
   }
@@ -112,7 +113,8 @@ export function tokenState(round, token, inTitle=false) {
   if (!isWord(token)) return {type:'punct', label:token};
   if (round.guesses.some(g=>sameWord(g,token))) return {type:'exact', label:token};
   if (inTitle) return {type:'hidden', label:token};
-  const hint=round.hints[normalizeWord(token)];
+  const key=normalizeWord(token);
+  const hint=Object.hasOwn(round.hints,key)?round.hints[key]:undefined;
   if (hint) return {type:'near', label:hint.guess, score:hint.score};
   return {type:'hidden', label:token};
 }
