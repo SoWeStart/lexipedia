@@ -42,6 +42,21 @@ with sync_playwright() as playwright:
   page.wait_for_selector('#guessInput:not([disabled])',timeout=12000)
   assert page.locator('.word.hidden').count()>3
   assert page.locator('#maskedTitle .word.hidden').count()==1
+  # A tap or keyboard action temporarily overlays the exact letter count.
+  hidden=page.locator('#articleText .word.hidden').first
+  expected=hidden.get_attribute('data-length')
+  assert expected and expected.isdigit()
+  hidden.click()
+  assert 'length-peek' in hidden.get_attribute('class')
+  assert hidden.evaluate('(el)=>getComputedStyle(el,"::after").content')=='"'+expected+'"'
+  assert page.locator('#guessCount').inner_text()=='0'
+  page.wait_for_timeout(1900)
+  assert 'length-peek' not in hidden.get_attribute('class')
+  titleword=page.locator('#maskedTitle .word.hidden').first
+  titleword.focus()
+  page.keyboard.press('Enter')
+  assert 'length-peek' in titleword.get_attribute('class')
+  assert page.locator('#maskedTitle .word.exact').count()==0
   page.screenshot(path=f'/mnt/data/lexipedia-{name}-before.png',full_page=True)
   for i,word in enumerate(['biology','animal','insect','fly','mosquito'],1):
    page.locator('#guessInput').fill(word)
