@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#101c1a">
+  <meta name="theme-color" content="#eeeae0">
   <meta name="description" content="Errate beliebig viele Wikipedia-Artikel mithilfe semantischer Worthinweise. Kostenlos, direkt im Browser.">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
@@ -54,12 +54,11 @@
             <form id="guessForm" autocomplete="off">
               <label class="sr-only" for="guessInput">Englisches Wort eingeben</label>
               <div class="input-group">
-                <input id="guessInput" type="text" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" maxlength="42" placeholder="z. B. biology, animal, music …" enterkeyhint="go">
+                <input id="guessInput" type="text" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" maxlength="42" placeholder="Dein Wort …" enterkeyhint="go">
                 <button id="submitButton" class="btn btn-primary" type="submit">Raten <span aria-hidden="true">↗</span></button>
               </div>
             </form>
-            <div id="message" class="message" role="status" aria-live="polite">Starte mit einem Oberbegriff und entdecke passende Hinweise im Artikel.</div>
-            <div class="category-row"><span>STARTE MIT</span><div id="quickWords" class="chips"></div></div>
+            <div id="message" class="message" role="status" aria-live="polite">Tippe ein Wort ein, um Bedeutungsbeziehungen aufzudecken.</div>
           </div>
           <div class="panel history-panel">
             <div class="panel-heading history-heading"><div class="heading-left"><span class="panel-bullet muted"></span><h2>Deine Versuche</h2></div><span id="historyCount" class="small-count">0 Wörter</span></div>
@@ -82,7 +81,7 @@
     </main>
   </div>
 
-  <dialog id="helpDialog" class="dialog"><div class="dialog-inner"><button class="dialog-x" data-close="helpDialog" aria-label="Schließen">×</button><span class="dialog-eyebrow">SPIELANLEITUNG</span><h2>So funktioniert Lexipedia</h2><ol><li>Ein englischer Wikipedia-Artikel ist verdeckt. Satzzeichen und die Größe der Wortbalken bleiben sichtbar. Tippe auf einen verdeckten Balken, um kurz die genaue Buchstabenanzahl zu sehen.</li><li>Gib ein einzelnes englisches Wort ein. Exakte Wörter werden <strong class="green-text">grün</strong> aufgedeckt, grammatische Varianten zählen ebenfalls.</li><li>Semantisch ähnliche Wörter erscheinen als <strong class="orange-text">farbige Vermutungen</strong>. Je näher, desto deutlicher die Farbe. Ältere Hinweise verblassen, sobald du ein besseres Wort findest.</li><li>Finde alle Wörter im verdeckten Titel, um zu gewinnen. Titelwörter haben keine semantischen Hinweise.</li><li>Mit „Neues Rätsel“ kannst du beliebig oft weiterspielen. Der Link „Freund einladen“ startet für Freunde denselben Artikel, aber mit eigenem Spielstand.</li></ol><p class="help-note">Das Modell wird beim ersten Besuch kostenlos im Browser geladen (~23 MB). Bis dahin funktioniert ein eingeschränkter Grundmodus. Keine Konten, keine bezahlte KI-Schnittstelle.</p><button class="btn btn-primary modal-button" data-close="helpDialog">Verstanden</button></div></dialog>
+  <dialog id="helpDialog" class="dialog"><div class="dialog-inner"><button class="dialog-x" data-close="helpDialog" aria-label="Schließen">×</button><span class="dialog-eyebrow">SPIELANLEITUNG</span><h2>So funktioniert Lexipedia</h2><ol><li>Ein englischer Wikipedia-Artikel ist verdeckt. Satzzeichen und die Größe der Wortbalken bleiben sichtbar. Tippe auf einen verdeckten Balken, um kurz die genaue Buchstabenanzahl zu sehen.</li><li>Gib ein einzelnes englisches Wort ein. Exakte Wörter werden <strong class="green-text">grün</strong> aufgedeckt, grammatische Varianten zählen ebenfalls.</li><li>Semantisch ähnliche Wörter erscheinen als <strong class="orange-text">farbige Vermutungen</strong>. Je näher, desto deutlicher die Farbe. Ältere Hinweise verblassen, sobald du ein besseres Wort findest.</li><li>Finde alle Wörter im verdeckten Titel, um zu gewinnen. Titelwörter haben keine semantischen Hinweise.</li><li>Mit „Neues Rätsel“ kannst du beliebig oft weiterspielen. Der Link „Freund einladen“ startet für Freunde denselben Artikel, aber mit eigenem Spielstand.</li></ol><p class="help-note">Ein lokales Sprachmodell ergänzt geprüfte Begriffsbeziehungen. Grammatik- und Funktionswörter erhalten keine irreführenden semantischen Treffer. Keine Konten, keine bezahlte KI-Schnittstelle.</p><button class="btn btn-primary modal-button" data-close="helpDialog">Verstanden</button></div></dialog>
 
   <dialog id="winDialog" class="dialog win-dialog"><div class="dialog-inner"><span class="win-icon">✳</span><span class="dialog-eyebrow">ARTIKEL ENTDECKT</span><h2 id="winTitle">Geschafft!</h2><p id="winStats"></p><div class="win-actions"><button id="nextWinButton" class="btn btn-primary">Nächstes Rätsel ↗</button><button id="shareWinButton" class="btn btn-secondary">Ergebnis teilen</button></div><button class="text-button" data-close="winDialog">Artikel ansehen</button></div></dialog>
 
