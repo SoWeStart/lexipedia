@@ -86,9 +86,9 @@ export function isWord(part) { return /^[\p{L}\p{N}]/u.test(part); }
 export function titleWords(title) { return tokenize(title).filter(isWord).map(normalizeWord); }
 
 export const CLUE_LIMIT=3;
-export function createRound({title, extract, source, image='', seed=null, language='en'}) {
+export function createRound({title, extract, source, image='', seed=null, language='en', item=null}) {
   if (!title || !extract) throw new TypeError('Title and introduction required');
-  return {title, extract, source, image, seed, language, guesses:[], hints:{}, clues:[], startedAt:Date.now(), finishedAt:null};
+  return {title, extract, source, image, seed, language, item, guesses:[], hints:{}, clues:[], startedAt:Date.now(), finishedAt:null};
 }
 export function useClue(round,key){
   const clues=round.clues??=[];

@@ -46,7 +46,7 @@ test('fetch skips unsuitable candidates and redirects to already played articles
   t.mock.method(globalThis,'fetch',async url=>{
     const params=new URL(url).searchParams;
     assert.equal(params.has('generator'),false);
-    assert.equal(params.get('ppprop'),'disambiguation');
+    assert.equal(params.get('ppprop'),'disambiguation|wikibase_item');
     const title=params.get('titles');
     calls.push(title);
     const result=title===first?page(title,{missing:true}):page(title===second?'Magnetism':title);
@@ -88,4 +88,22 @@ test('German rounds draw from the German pool and use the German Wikipedia and f
   assert.equal((await fetchTitle('Volcano')).language,'en');
   assert.deepEqual(calls,['de.wikipedia.org','de.wikipedia.org','en.wikipedia.org']);
   assert.equal(practiceArticle('de').title,'Vulkan');
+});
+
+test('new rounds prefer a different topic over a recently played translation',async t=>{
+  const [translated,next]=candidateOrder([],()=>0.5,'de');
+  const calls=[];
+  t.mock.method(globalThis,'fetch',async url=>{
+    const title=new URL(url).searchParams.get('titles');
+    calls.push(title);
+    const p=page(title,{pageprops:{wikibase_item:title===translated?'Q1':'Q2'}});
+    return {ok:true,json:async()=>response(p)};
+  });
+  assert.equal((await fetchCuratedArticle([],undefined,()=>0.5,'de',['Q1'])).title,next);
+  assert.deepEqual(calls,[translated,next]);
+});
+
+test('both pools exclude the flagged specialist biography and historical period',()=>{
+  const titles=[...Object.values(POOL).flat(2),...Object.values(GERMAN_POOL).flat(2)];
+  assert.ok(titles.every(title=>!/ramanujan|meiji/i.test(title)));
 });

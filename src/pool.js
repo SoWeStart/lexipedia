@@ -27,18 +27,18 @@ export const POOL = {
   ],
   earth: [
     ['Volcano', 'Earthquake', 'Antarctica', 'Sahara', 'Moon'],
-    ['Bering Strait', 'Lake Baikal', 'Atacama Desert', 'Andes', 'Stratosphere', 'El Niño–Southern Oscillation', 'Plate tectonics', 'Kuiper belt', 'Pulsar', 'Continental drift'],
-    ['Hadley cell', 'Milankovitch cycles', 'Ophiolite', 'Chandrasekhar limit', 'Paleomagnetism'],
+    ['Rhine', 'Alps', 'North Sea', 'Andes', 'Stratosphere', 'Mediterranean Sea', 'Plate tectonics', 'Kuiper belt', 'Pulsar', 'Continental drift'],
+    ['Gulf Stream', 'Milankovitch cycles', 'Rock cycle', 'Chandrasekhar limit', 'Paleomagnetism'],
   ],
   history: [
     ['Silk Road', 'French Revolution', 'Roman Empire', 'Industrial Revolution', 'Cold War'],
-    ['Haitian Revolution', 'Meiji Restoration', "Thirty Years' War", 'Late Bronze Age collapse', 'Treaty of Versailles', 'Mali Empire', 'Berlin Blockade', 'Boxer Rebellion', 'Fall of Constantinople', 'Mughal Empire'],
-    ['Peace of Westphalia', 'Taiping Rebellion', 'War of the Spanish Succession', 'Wars of the Roses', 'Battle of Lepanto'],
+    ['Berlin Wall', 'German reunification', "Thirty Years' War", 'American Revolution', 'Treaty of Versailles', 'Ancient Egypt', 'Berlin Blockade', 'Great Wall of China', 'Fall of Constantinople', 'Reformation'],
+    ['Peace of Westphalia', 'Congress of Vienna', 'War of the Spanish Succession', 'Wars of the Roses', 'Suez Crisis'],
   ],
   people: [
     ['Marie Curie', 'Isaac Newton', 'Frida Kahlo', 'Nelson Mandela', 'Charles Darwin'],
-    ['Ada Lovelace', 'Ibn Battuta', 'Hannah Arendt', 'Hokusai', 'Florence Nightingale', 'Rachel Carson', 'Srinivasa Ramanujan', 'James Baldwin', 'Johannes Gutenberg', 'Murasaki Shikibu'],
-    ['Al-Biruni', 'Émilie du Châtelet', 'Mary Anning', 'W. E. B. Du Bois', 'Sofya Kovalevskaya'],
+    ['Ada Lovelace', 'Albert Einstein', 'Hannah Arendt', 'Anne Frank', 'Florence Nightingale', 'Galileo Galilei', 'Johann Sebastian Bach', 'Martin Luther King Jr.', 'Johannes Gutenberg', 'Ludwig van Beethoven'],
+    ['Alexander von Humboldt', 'Georg Friedrich Händel', 'Mary Anning', 'Rosa Parks', 'Jane Goodall'],
   ],
   technology: [
     ['Bicycle', 'Microscope', 'Steam engine', 'Compass', 'Printing press'],
@@ -85,18 +85,18 @@ export const GERMAN_POOL={
   ],
   earth:[
     ['Vulkan','Erdbeben','Mond'],
-    ['Baikalsee','Atacama-Wüste','Anden','Beringstraße','Plattentektonik','Pulsar'],
-    ['Hadley-Zelle','Kuipergürtel','Chandrasekhar-Grenze'],
+    ['Rhein','Alpen','Nordsee','Mittelmeer','Plattentektonik','Pulsar'],
+    ['Golfstrom','Kuipergürtel','Kreislauf der Gesteine'],
   ],
   history:[
     ['Seidenstraße','Französische Revolution','Römisches Reich'],
-    ['Haitianische Revolution','Meiji-Restauration','Dreißigjähriger Krieg','Versailler Vertrag','Mogulreich','Berliner Luftbrücke'],
-    ['Westfälischer Friede','Rosenkriege','Taiping-Aufstand'],
+    ['Berliner Mauer','Deutsche Wiedervereinigung','Dreißigjähriger Krieg','Friedensvertrag von Versailles','Chinesische Mauer','Berliner Luftbrücke'],
+    ['Westfälischer Friede','Wiener Kongress','Spanischer Erbfolgekrieg'],
   ],
   people:[
     ['Marie Curie','Isaac Newton','Frida Kahlo'],
-    ['Ada Lovelace','Hannah Arendt','Florence Nightingale','Rachel Carson','Johannes Gutenberg','Srinivasa Ramanujan'],
-    ['Mary Anning','Émilie du Châtelet','Sofja Wassiljewna Kowalewskaja'],
+    ['Albert Einstein','Hannah Arendt','Anne Frank','Galileo Galilei','Johannes Gutenberg','Johann Sebastian Bach'],
+    ['Alexander von Humboldt','Rosa Parks','Jane Goodall'],
   ],
   technology:[
     ['Fahrrad','Mikroskop','Dampfmaschine'],

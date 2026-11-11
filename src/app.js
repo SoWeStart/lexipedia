@@ -1,8 +1,8 @@
-import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=8';
-import {conceptBatch,hasConcept} from './concepts.js?v=8';
-import {strings} from './language.js?v=8';
-import {titleKey} from './pool.js?v=8';
-import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=8';
+import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=9';
+import {conceptBatch,hasConcept} from './concepts.js?v=9';
+import {strings} from './language.js?v=9';
+import {titleKey} from './pool.js?v=9';
+import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=9';
 
 const $=id=>document.getElementById(id);
 const ui={form:$('guessForm'),input:$('guessInput'),submit:$('submitButton'),message:$('message'),history:$('history'),guessCount:$('guessCount'),elapsed:$('elapsed'),titleProgress:$('titleProgress'),maskedTitle:$('maskedTitle'),articleText:$('articleText'),articleBadge:$('articleBadge'),sourceLink:$('sourceLink')};
@@ -43,6 +43,14 @@ function lastGames(lang){
   }catch{return []}
 }
 const seen=new Map();
+let itemHistory=[];
+function recentItems(){
+  try{
+    const stored=JSON.parse(safeStorageGet('lexipedia:recent-items')||'[]');
+    return [...new Set([...(Array.isArray(stored)?stored:[]),...itemHistory])]
+      .filter(item=>typeof item==='string'&&/^Q\d+$/.test(item)).slice(0,35);
+  }catch{return itemHistory;}
+}
 function roundHistory(){
   const titles=new Map();
   for(const title of [...lastGames(language),...(seen.get(language)??[])]){
@@ -51,11 +59,15 @@ function roundHistory(){
   }
   return [...titles.values()];
 }
-function addSeen(title){
+function addSeen({title,item}){
   const key=titleKey(title);
   const titles=[title,...roundHistory().filter(value=>titleKey(value)!==key)];
   seen.set(language,titles);
   safeStorageSet(seenKey(language),JSON.stringify(titles));
+  if(item){
+    itemHistory=[item,...recentItems().filter(value=>value!==item)].slice(0,35);
+    safeStorageSet('lexipedia:recent-items',JSON.stringify(itemHistory));
+  }
 }
 let language=safeStorageGet('lexipedia:language')==='en'?'en':'de';
 let message={key:'',kind:'',args:[]};
@@ -132,7 +144,7 @@ function prepareSemantic(){
 }
 function ensureWorker(){
   try{
-    worker=new Worker(new URL('./semantic-worker.js?v=8',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./semantic-worker.js?v=9',import.meta.url),{type:'module'});
     worker.onmessage=e=>{
       const d=e.data;
       if(d.epoch!==epoch)return;
@@ -296,13 +308,15 @@ function showWin(){
 }
 async function startRound({route=null}={}){
   if(route && route.language!==language)setLanguage(route.language);
+  const previous=!route && round && (round.language??'en')===language?round:null;
   epoch++;const captured=epoch;
   if(controller)controller.abort();controller=new AbortController();
   pending.clear();choosingClue=false;unrecognizedWord='';setBusy(true);articleStatus='';showMessage();ui.input.value='';
   let info=route;
   if(info?.key){activeRoute=info.key;const old=loadSaved(info.key);
-    if(old){round=old;addSeen(old.title);save();setBusy(false);renderAll();prepareSemantic();return;}
+    if(old){round=old;addSeen(old);save();$('newButton').disabled=false;setBusy(false);renderAll();prepareSemantic();return;}
   }
+  $('newButton').disabled=true;
   round=null;articleStatus='loading';renderArticleStatus();
   ui.maskedTitle.textContent='••••••••';
   ui.maskedTitle.lang=language;
@@ -312,7 +326,7 @@ async function startRound({route=null}={}){
   $('shareButton').disabled=true;
   try{
     let article;
-    if(!info)article=await fetchCuratedArticle(roundHistory(),controller.signal,Math.random,language);
+    if(!info)article=await fetchCuratedArticle(roundHistory(),controller.signal,Math.random,language,recentItems());
     else if(info?.kind==='title')article=await fetchTitle(info.title,controller.signal,language);
     else article=await fetchSeededArticle(info.seed,controller.signal);
     if(captured!==epoch)return;
@@ -321,17 +335,24 @@ async function startRound({route=null}={}){
     const prior=loadSaved(info.key);
     round=prior||createRound({...article,seed:info.kind==='seed'?info.seed:null});
     round.semanticVersion=SEMANTIC_VERSION;
-    addSeen(article.title);
+    addSeen(round);
     save();setBusy(false);renderAll();prepareSemantic();
     ui.input.focus({preventScroll:true});
   }catch(error){
     if(captured!==epoch || controller.signal.aborted)return;
+    if(previous){
+      round=previous;articleStatus='';setBusy(false);renderAll();prepareSemantic();
+      showMessage('retryRound','error');return;
+    }
     if(info?.kind==='title'){
       articleStatus='loadError';renderArticleStatus();setBusy(false);return;
     }
     const article=practiceArticle(language);
     activeRoute='practice';round=createRound(article);round.semanticVersion=SEMANTIC_VERSION;setBusy(false);renderAll();prepareSemantic();
+    addSeen(round);
     showMessage('practice','error');
+  }finally{
+    if(captured===epoch)$('newButton').disabled=false;
   }
 }
 async function shareText(text){

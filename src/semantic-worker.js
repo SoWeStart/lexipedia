@@ -1,7 +1,7 @@
 /* Isolates model loading/inference from the UI thread. All inference is local in the browser. */
-import {conceptBatch} from './concepts.js?v=8';
-import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints} from './core.js?v=8';
-import {prepareSpelling,spellingIssue} from './spelling.js?v=8';
+import {conceptBatch} from './concepts.js?v=9';
+import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints} from './core.js?v=9';
+import {prepareSpelling,spellingIssue} from './spelling.js?v=9';
 
 let currentEpoch=0, language='en', targetWords=[], extractedVectors=new Map(), extractor=null, modelReady=false;
 const MODELS={en:'Xenova/all-MiniLM-L6-v2',de:'Xenova/paraphrase-multilingual-MiniLM-L12-v2'};

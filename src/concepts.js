@@ -1,4 +1,4 @@
-import {normalizeWord,stemWord} from './core.js?v=8';
+import {normalizeWord,stemWord} from './core.js?v=9';
 
 /** Offline semantic fallback and ontology augmentation. This is a directed, weighted lexical graph, not a pretrained embedding. */
 const GROUPS = [

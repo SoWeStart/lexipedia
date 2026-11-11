@@ -1,10 +1,10 @@
 import {ARTICLES, PRACTICE} from './articles.js';
-import {seedIndex} from './core.js?v=8';
-import {candidateOrder,titleKey} from './pool.js?v=8';
+import {seedIndex} from './core.js?v=9';
+import {candidateOrder,titleKey} from './pool.js?v=9';
 
 function wikiHost(language){return language==='de'?'https://de.wikipedia.org':'https://en.wikipedia.org';}
 class UnsuitableArticle extends Error {}
-function queryUrl(args,language){ return `${wikiHost(language)}/w/api.php?${new URLSearchParams({action:'query',prop:'extracts|pageimages|info|pageprops',ppprop:'disambiguation',exintro:'1',explaintext:'1',exchars:'1200',pithumbsize:'600',inprop:'url',redirects:'1',format:'json',formatversion:'2',origin:'*',...args})}`; }
+function queryUrl(args,language){ return `${wikiHost(language)}/w/api.php?${new URLSearchParams({action:'query',prop:'extracts|pageimages|info|pageprops',ppprop:'disambiguation|wikibase_item',exintro:'1',explaintext:'1',exchars:'1200',pithumbsize:'600',inprop:'url',redirects:'1',format:'json',formatversion:'2',origin:'*',...args})}`; }
 export function parseWikiResponse(json,{curated=false,language='en'}={}){
   if(json?.error)throw new Error('Wikipedia API error');
   const p=json?.query?.pages?.[0];
@@ -18,7 +18,7 @@ export function parseWikiResponse(json,{curated=false,language='en'}={}){
       throw new UnsuitableArticle('Wikipedia article does not meet pool quality criteria');
     }
   }
-  return {title:p.title,extract:text,source:p.fullurl||`${wikiHost(language)}/wiki/${encodeURIComponent(p.title.replaceAll(' ','_'))}`,image:p.thumbnail?.source||'',language};
+  return {title:p.title,extract:text,source:p.fullurl||`${wikiHost(language)}/wiki/${encodeURIComponent(p.title.replaceAll(' ','_'))}`,image:p.thumbnail?.source||'',language,item:p.pageprops?.wikibase_item??null};
 }
 async function request(url,signal,options){
   const response=await fetch(url,{signal,cache:'no-cache'});
@@ -28,10 +28,11 @@ async function request(url,signal,options){
 export async function fetchTitle(title,signal,language='en'){
   return request(queryUrl({titles:title},language),signal,{language});
 }
-export async function fetchCuratedArticle(history,signal,random=Math.random,language='en'){
+export async function fetchCuratedArticle(history,signal,random=Math.random,language='en',recentItems=[]){
   const played=new Map([...new Set(history.map(titleKey))].map((key,index)=>[key,index]));
   const tried=new Set();
-  let oldest;
+  const recent=new Set(recentItems);
+  let oldest,recentTranslation;
   const order=candidateOrder(history,random,language);
   for(const title of order){
     signal?.throwIfAborted();
@@ -45,15 +46,19 @@ export async function fetchCuratedArticle(history,signal,random=Math.random,lang
     }
     const key=titleKey(article.title);
     tried.add(key);
-    if(!played.has(key))return article;
+    if(!played.has(key)){
+      if(!recent.has(article.item))return article;
+      recentTranslation??=article;
+      continue;
+    }
     const position=played.get(key);
     if(!oldest || position>oldest.position){
       oldest={article,position};
     }
     // A canonical match here is already ordered by recency among known titles.
-    if(played.has(titleKey(title)) && key===titleKey(title))return oldest.article;
+    if(played.has(titleKey(title)) && key===titleKey(title))return recentTranslation??oldest.article;
   }
-  if(oldest)return oldest.article;
+  if(recentTranslation||oldest)return recentTranslation??oldest.article;
   throw new Error('No suitable curated article found');
 }
 export async function fetchSeededArticle(seed,signal){
