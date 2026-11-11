@@ -61,15 +61,20 @@ for(const record of GROUPS){
 for(const [name,num] of [['one','1'],['two','2'],['three','3'],['four','4'],['five','5'],['six','6'],['seven','7'],['eight','8'],['nine','9'],['ten','10']]){
   edge(name,num,0.9);edge(num,name,0.9);
 }
-/** Maximum product path for up to 4 edges, penalized for semantic drift. */
+/** Avoid transitive false positives through encyclopedic umbrella categories.
+ * For example, mathematics -> science -> biology must not be treated as a
+ * close relationship, even though both disciplines share the science parent. */
+const BROAD_HUBS = new Set('science nature biology geography mathematics physics chemistry music religion sport art medicine technology environment history'.split(' '));
+/** Short, weighted lexical paths only: no unrestricted graph diffusion. */
 export function conceptSimilarity(a,b){
   a=String(a).toLowerCase();b=String(b).toLowerCase();
   if(a===b)return 1;
   if(!graph.has(a))return 0;
   let frontier=new Map([[a,1]]), best=0,seen=new Map([[a,1]]);
-  for(let depth=0;depth<4;depth++){
+  for(let depth=0;depth<2;depth++){
     const next=new Map();
     for(const [node,weight] of frontier){
+      if(depth>0 && BROAD_HUBS.has(node))continue;
       for(const [neighbor,edgeWeight] of graph.get(node)||[]){
         const newWeight=weight*edgeWeight;
         if(neighbor===b) best=Math.max(best,newWeight);
