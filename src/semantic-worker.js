@@ -1,13 +1,13 @@
 /* Isolates model loading/inference from the UI thread. All inference is local in the browser. */
 import {conceptBatch} from './concepts.js';
-import {normalizeWord, tokenize, isWord} from './core.js';
+import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, calibratedEmbeddingScore} from './core.js';
 
 let currentEpoch=0, targetWords=[], extractedVectors=new Map(), extractor=null, extractorPromise=null;
 const DIM=384;
 
 function post(type,payload={}) {self.postMessage({type,epoch:currentEpoch,...payload});}
 function uniqueWords(input){
-  return [...new Set(tokenize(input).filter(isWord).map(normalizeWord).filter(w=>w.length<=42))];
+  return [...new Set(tokenize(input).filter(isWord).map(normalizeWord).filter(w=>w.length<=42 && isSemanticCandidate(w)))];
 }
 function cosine(a,b){
   if(!a||!b||a.length!==b.length)return 0;
@@ -55,13 +55,16 @@ async function init(epoch,text){
 }
 async function score(epoch,guess,requestId){
   if(epoch!==currentEpoch)return;
-  const word=normalizeWord(guess), scores=conceptBatch(word,targetWords);
+  const word=normalizeWord(guess), scores=isSemanticCandidate(word)?conceptBatch(word,targetWords):{};
   if(extractor&&extractedVectors.size){
     try {
-      const vector=(await embedBatch([word]))[0];
-      for(const target of targetWords){
-        const similarity=cosine(vector,extractedVectors.get(target));
-        scores[target]=Math.max(scores[target],similarity);
+      if (isSemanticCandidate(word)) {
+        const vector=(await embedBatch([word]))[0];
+        for(const target of targetWords){
+          if(sameWord(word,target)) continue;
+          const similarity=calibratedEmbeddingScore(cosine(vector,extractedVectors.get(target)));
+          if(similarity>=0.38) scores[target]=Math.max(scores[target]||0,similarity);
+        }
       }
     }catch(error){post('status',{message:'Ein Vektorvergleich ist fehlgeschlagen. Grundmodus weiterhin verfügbar.'});}
   }
