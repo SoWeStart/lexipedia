@@ -6,3 +6,9 @@
 @media(min-width:761px){.history-panel{display:block!important}}
 @media(max-width:430px){.input-group input{font-size:13px;padding:11px}.input-group .btn{padding:11px}.article-text{font-size:15.7px}.free-tag{display:none}.intro h1{font-size:34px}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* Pedantle-style brief word-length peek, also available with keyboard access. */
+.word.hidden.length-peek,.word.near.length-peek{position:relative;color:transparent}
+.word.length-peek::after{content:attr(data-length);position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#53d3e4;font-family:'DM Sans',system-ui,sans-serif;font-size:.84em;font-style:normal;font-weight:800;line-height:1;pointer-events:none}
+.masked-title .word.hidden.length-peek{height:1.1em;vertical-align:baseline;transform:none}
+@media (prefers-reduced-motion: reduce){.word{transition:none}}
