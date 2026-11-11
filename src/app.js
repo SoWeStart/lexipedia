@@ -1,4 +1,4 @@
-import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, formatElapsed, titleWords, encodeTitle, decodeTitle, seedIndex} from './core.js';
+import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, titleWords, encodeTitle, decodeTitle, seedIndex} from './core.js';
 import {conceptBatch} from './concepts.js';
 import {ARTICLES} from './articles.js';
 import {fetchSeededArticle,fetchRandomArticle,fetchTitle,practiceArticle} from './wiki.js';
@@ -6,7 +6,7 @@ import {fetchSeededArticle,fetchRandomArticle,fetchTitle,practiceArticle} from '
 const $=id=>document.getElementById(id);
 const ui={form:$('guessForm'),input:$('guessInput'),submit:$('submitButton'),message:$('message'),history:$('history'),historyCount:$('historyCount'),guessCount:$('guessCount'),elapsed:$('elapsed'),titleProgress:$('titleProgress'),progressBar:$('progressBar'),maskedTitle:$('maskedTitle'),articleText:$('articleText'),articleBadge:$('articleBadge'),sourceLink:$('sourceLink'),mode:$('modeStatus')};
 const STORE_PREFIX='lexipedia:v1:';
-const QUICK=['science','mathematics','biology','nature','animal','history','music','sport','religion','physics'];
+const SEMANTIC_VERSION=2;
 let round=null,activeRoute='',epoch=0,controller=null,worker=null,serial=0,pending=new Map(),busy=false,modelMode='basic',showFullArticle=false;
 
 function safeStorageGet(key){try{return localStorage.getItem(key)}catch{return null}}
@@ -46,12 +46,18 @@ function loadSaved(key){try{
   const raw=safeStorageGet(STORE_PREFIX+key);if(!raw)return null;
   const r=JSON.parse(raw);
   if(!r || typeof r.title!=='string' || typeof r.extract!=='string' || !Array.isArray(r.guesses) || !r.hints)return null;
+  if(r.semanticVersion!==SEMANTIC_VERSION){
+    r.hints={}; r.semanticVersion=SEMANTIC_VERSION;
+    for(const guess of r.guesses)mergeHints(r,guess,conceptBatch(guess,getUniqueWords(r.extract)));
+  }
   return r;
 }catch{return null}}
+function getUniqueWords(text){return [...new Set(tokenize(text).filter(isWord).map(normalizeWord))].filter(isSemanticCandidate);}
 function setBusy(value){busy=value;ui.submit.disabled=value;ui.input.disabled=value;}
 function prepareSemantic(){
   if(!round)return;
   const current=epoch;
+  round.semanticVersion=SEMANTIC_VERSION;
   if(worker){worker.postMessage({type:'init',epoch:current,text:round.extract});}
   else setMode('Grundmodus aktiv (Sprachmodell nicht verfügbar)','basic');
 }
@@ -82,7 +88,7 @@ function ensureWorker(){
     };
   }catch{worker=null;setMode('Grundmodus aktiv','basic');}
 }
-function getWords(){return [...new Set(tokenize(round?.extract||'').filter(isWord).map(normalizeWord))];}
+function getWords(){return getUniqueWords(round?.extract||'');}
 function requestScore(word,replay=false){
   if(!round)return;
   if(!worker){const scores=conceptBatch(word,getWords());if(replay){mergeHints(round,word,scores);renderArticle();renderHistory();}else finishGuess(word,scores);return;}
@@ -170,16 +176,7 @@ function renderStats(){
   const diff=(round.finishedAt||Date.now())-round.startedAt;
   ui.elapsed.textContent=formatElapsed(diff);
 }
-function renderAll(){renderStats();renderArticle();renderHistory();renderChips();}
-function renderChips(){
-  const fragment=document.createDocumentFragment();
-  for(const word of QUICK){
-    const button=document.createElement('button');button.className='chip';button.type='button';button.textContent=word;
-    button.disabled=!!round?.finishedAt||!!round?.guesses.includes(word);
-    button.addEventListener('click',()=>{ui.input.value=word;ui.form.requestSubmit();});fragment.append(button);
-  }
-  $('quickWords').replaceChildren(fragment);
-}
+function renderAll(){renderStats();renderArticle();renderHistory();}
 function finishGuess(word,scores){
   if(!round)return;
   const result=applyGuess(round,word,scores);
@@ -220,6 +217,7 @@ async function startRound({mode='seed',route=null}={}){
     activeRoute=info.key;
     const prior=loadSaved(info.key);
     round=prior||createRound({...article,seed:info.kind==='seed'?info.seed:null});
+    round.semanticVersion=SEMANTIC_VERSION;
     addSeen(article.title);
     save();setBusy(false);renderAll();prepareSemantic();
     showMessage('Rätsel bereit. Rate zunächst ein grobes Themengebiet.');
@@ -230,7 +228,7 @@ async function startRound({mode='seed',route=null}={}){
       round=null;ui.articleText.innerHTML='<div class="article-error">Der geteilte Artikel konnte nicht geladen werden. Prüfe die Internetverbindung und wähle „Neues Rätsel“.</div>';setBusy(false);showMessage('Wikipedia ist nicht erreichbar. Bitte erneut versuchen.','error');return;
     }
     const article=practiceArticle();
-    activeRoute='practice';round=createRound(article);setBusy(false);renderAll();prepareSemantic();
+    activeRoute='practice';round=createRound(article);round.semanticVersion=SEMANTIC_VERSION;setBusy(false);renderAll();prepareSemantic();
     showMessage('Wikipedia ist gerade nicht erreichbar. Stattdessen läuft ein selbst verfasstes Übungsrätsel.','error');
   }
 }
