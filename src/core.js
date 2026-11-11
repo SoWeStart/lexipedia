@@ -34,6 +34,34 @@ export function stemWord(value) {
   return w;
 }
 
+/** Function words are syntactic glue, not semantic neighbors of content terms.
+ * They still count when guessed exactly. Protects against the high background
+ * cosine scores produced by sentence models on isolated 1-token inputs. */
+const FUNCTION_WORDS = new Set(`
+ a an the and or but nor so yet as at by for from in into of off on onto out over under with without to toward towards up down upon
+ is am are was were be been being do does did doing have has had having shall should will would can could may might must
+ i me my mine we us our ours you your yours he him his she her hers it its they them their theirs who whom whose what which this that these those
+ there here where when why how all any each every either neither both few fewer less many more most much some such no none not never only other another same
+ if then than though although because since while until unless whether after before during between among around through throughout across against
+ one two three four five six seven eight nine ten first second third several
+ about above below beside besides beyond within via per vs etc also just even still already now very quite rather too enough
+ i'm you're it's we're they're isn't aren't wasn't weren't don't doesn't didn't hasn't haven't hadn't can't won't couldn't shouldn't wouldn't
+`.trim().split(/\s+/));
+export function isSemanticCandidate(value) {
+  const w=normalizeWord(value);
+  if (!w || FUNCTION_WORDS.has(w)) return false;
+  if (/^\d+$/.test(w)) return false;
+  // Short terms are often pronouns, auxiliary verbs or unreliable model subwords.
+  return [...w].length>=3;
+}
+/** Calibrate a sentence embedding used out of distribution on single words.
+ * Raw values below 0.69 are too noisy; explicit graph relations are preferred. */
+export function calibratedEmbeddingScore(raw) {
+  const cosine=Number(raw);
+  if (!Number.isFinite(cosine) || cosine<0.69) return 0;
+  return Math.min(0.93, Math.max(0, (cosine-0.55)*2.75));
+}
+
 export function sameWord(a,b) {
   const x=normalizeWord(a), y=normalizeWord(b);
   if (!x || !y) return false;
@@ -72,7 +100,7 @@ export function mergeHints(round,guess,scores={}) {
   const word=normalizeWord(guess);
   for (const [target, rawScore] of Object.entries(scores)) {
     const targetWord=normalizeWord(target);
-    if (!targetWord || sameWord(word,targetWord)) continue;
+    if (!isSemanticCandidate(word) || !isSemanticCandidate(targetWord) || sameWord(word,targetWord)) continue;
     const score=Math.min(1,Math.max(0,Number(rawScore)||0));
     if (score >= 0.38 && (!round.hints[targetWord] || score > round.hints[targetWord].score)) {
       round.hints[targetWord] = {guess:word, score};
