@@ -6,7 +6,7 @@ const IRREGULAR = Object.freeze({
   has:'have', had:'have', does:'do', did:'do', ran:'run', swam:'swim', swum:'swim', written:'write', wrote:'write',
   leaves:'leaf', wolves:'wolf', lives:'life', knives:'knife', crises:'crisis', fungi:'fungus', nuclei:'nucleus',
   news:'news', series:'series', means:'means', proceedings:'proceedings', politics:'politics', economics:'economics', physics:'physics',
-  algae:'alga', mosquitoes:'mosquito', volcanoes:'volcano', heroes:'hero'
+  algae:'alga', cacti:'cactus', mosquitoes:'mosquito', volcanoes:'volcano', heroes:'hero'
 });
 
 export function normalizeWord(value) {
@@ -63,6 +63,14 @@ export function calibratedEmbeddingScore(raw) {
   if (!Number.isFinite(cosine) || cosine<0.69) return 0;
   return Math.min(0.93, Math.max(0, (cosine-0.55)*2.75));
 }
+export function rankEmbeddingHints(candidates){
+  const ranked=candidates.filter(([,similarity])=>Number.isFinite(similarity)&&similarity>=.73)
+    .sort((a,b)=>b[1]-a[1]);
+  if(!ranked.length)return [];
+  const cutoff=ranked[0][1]-.10;
+  return ranked.filter(([,similarity])=>similarity>=cutoff).slice(0,6)
+    .map(([word,similarity])=>[word,Math.min(.67,calibratedEmbeddingScore(similarity))]);
+}
 
 export function sameWord(a,b,language='en') {
   const x=normalizeWord(a), y=normalizeWord(b);
@@ -89,9 +97,12 @@ export function useClue(round,key){
   return true;
 }
 export function revealRound(round){
-  if(round.finishedAt)return false;
+  if(round.revealed)return false;
   round.revealed=true;
-  round.finishedAt=Date.now();
+  if(!round.finishedAt){
+    round.abandoned=true;
+    round.finishedAt=Date.now();
+  }
   return true;
 }
 export function getTitleProgress(round) {
@@ -138,8 +149,8 @@ function storeHint(round,target,guess,score){
 }
 export function tokenState(round, token, inTitle=false) {
   if (!isWord(token)) return {type:'punct', label:token};
-  if (round.revealed) return {type:'revealed', label:token};
   if (round.guesses.some(g=>sameWord(g,token,round.language))) return {type:'exact', label:token};
+  if (round.revealed) return {type:'revealed', label:token};
   if (inTitle) return {type:'hidden', label:token};
   const key=normalizeWord(token);
   const hint=Object.hasOwn(round.hints,key)?round.hints[key]:undefined;

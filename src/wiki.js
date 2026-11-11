@@ -1,6 +1,6 @@
 import {ARTICLES, PRACTICE} from './articles.js';
-import {seedIndex} from './core.js?v=7';
-import {candidateOrder,titleKey} from './pool.js?v=7';
+import {seedIndex} from './core.js?v=8';
+import {candidateOrder,titleKey} from './pool.js?v=8';
 
 function wikiHost(language){return language==='de'?'https://de.wikipedia.org':'https://en.wikipedia.org';}
 class UnsuitableArticle extends Error {}
@@ -9,7 +9,7 @@ export function parseWikiResponse(json,{curated=false,language='en'}={}){
   if(json?.error)throw new Error('Wikipedia API error');
   const p=json?.query?.pages?.[0];
   if(!p || p.missing || !p.title || !p.extract)throw new UnsuitableArticle('Wikipedia returned no suitable article');
-  const text=p.extract.replace(/\[[0-9]+\]/g,'').replace(/\n{3,}/g,'\n\n').trim();
+  const text=p.extract.replace(/^\s*(?:Vorlage|Template):[^\n]*\n/gm,'').replace(/\[[0-9]+\]/g,'').replace(/\n{3,}/g,'\n\n').trim();
   if(text.length<220 || text.length>6000 || /^(List of |Liste )|\((disambiguation|Begriffsklärung)\)$/i.test(p.title))throw new UnsuitableArticle('Unsuitable Wikipedia introduction');
   if(curated){
     const words=text.toLowerCase().match(/\p{L}{3,}/gu)??[];

@@ -1,15 +1,16 @@
-import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=7';
-import {conceptBatch} from './concepts.js?v=7';
-import {strings} from './language.js?v=7';
-import {titleKey} from './pool.js?v=7';
-import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=7';
+import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=8';
+import {conceptBatch,hasConcept} from './concepts.js?v=8';
+import {strings} from './language.js?v=8';
+import {titleKey} from './pool.js?v=8';
+import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=8';
 
 const $=id=>document.getElementById(id);
 const ui={form:$('guessForm'),input:$('guessInput'),submit:$('submitButton'),message:$('message'),history:$('history'),guessCount:$('guessCount'),elapsed:$('elapsed'),titleProgress:$('titleProgress'),maskedTitle:$('maskedTitle'),articleText:$('articleText'),articleBadge:$('articleBadge'),sourceLink:$('sourceLink')};
 const STORE_PREFIX='lexipedia:v1:';
-const SEMANTIC_VERSION=5;
+const SEMANTIC_VERSION=6;
 let round=null,activeRoute='',epoch=0,controller=null,worker=null,serial=0,pending=new Map(),busy=false;
 let choosingClue=false;
+let unrecognizedWord='';
 const lastRoutes=new Map();
 
 function safeStorageGet(key){try{return localStorage.getItem(key)}catch{return null}}
@@ -109,6 +110,7 @@ function loadSaved(key){try{
   const raw=safeStorageGet(STORE_PREFIX+key);if(!raw)return null;
   const r=JSON.parse(raw);
   if(!r || typeof r.title!=='string' || typeof r.extract!=='string' || !Array.isArray(r.guesses) || !r.hints)return null;
+  if(r.revealed && r.abandoned===undefined)r.abandoned=!getTitleProgress(r).complete;
   if(r.semanticVersion!==SEMANTIC_VERSION){
     r.hints={}; r.semanticVersion=SEMANTIC_VERSION;
     const targets=getUniqueWords(r.extract,r.language);
@@ -130,7 +132,7 @@ function prepareSemantic(){
 }
 function ensureWorker(){
   try{
-    worker=new Worker(new URL('./semantic-worker.js?v=7',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./semantic-worker.js?v=8',import.meta.url),{type:'module'});
     worker.onmessage=e=>{
       const d=e.data;
       if(d.epoch!==epoch)return;
@@ -146,6 +148,14 @@ function ensureWorker(){
         if(request.replay){mergeHints(round,d.guess,d.scores);save();renderArticle();renderHistory();}
         else finishGuess(d.guess,d.scores);
       }
+      if(d.type==='spelling'){
+        const request=pending.get(d.requestId);if(!request)return;
+        pending.delete(d.requestId);
+        unrecognizedWord=request.word;
+        setBusy(false);
+        ui.input.value=request.original;ui.input.focus({preventScroll:true});
+        showMessage(d.suggestion?'spellingSuggestion':'unknownWord','error',d.suggestion);
+      }
     };
     worker.onerror=()=>{worker?.terminate();worker=null;
       for(const request of pending.values())if(!request.replay)finishGuess(request.word,localScores(request.word));
@@ -154,18 +164,20 @@ function ensureWorker(){
   }catch{worker=null;}
 }
 function localScores(word){return conceptBatch(word,getUniqueWords(round.extract,round.language),round.language);}
-function requestScore(word,replay=false){
+function requestScore(word,replay=false,original=word,checkSpelling=false){
   if(!round)return;
   if(!worker){const scores=localScores(word);if(replay){mergeHints(round,word,scores);renderArticle();renderHistory();}else finishGuess(word,scores);return;}
   const requestId=++serial;
-  pending.set(requestId,{word,replay});worker.postMessage({type:'score',epoch,guess:word,requestId});
+  pending.set(requestId,{word,replay,original});
+  worker.postMessage({type:'score',epoch,guess:word,requestId,checkSpelling});
 }
 function renderClueControls(){
   const remaining=CLUE_LIMIT-(round?.clues?.length??0);
   $('clueButton').disabled=!round||busy||!!round.finishedAt||remaining<=0;
   $('clueButton').setAttribute('aria-pressed',String(choosingClue));
   $('clueCount').textContent=String(remaining);
-  $('revealButton').disabled=!round||busy||!!round.finishedAt;
+  $('revealButton').disabled=!round||busy||!!round.revealed;
+  $('revealButton').textContent=tr(round?.finishedAt&&!round.abandoned?'viewArticle':'reveal');
   ui.maskedTitle.classList.toggle('selecting-clue',choosingClue);
   ui.articleText.classList.toggle('selecting-clue',choosingClue);
 }
@@ -236,8 +248,8 @@ function renderArticle(){
   ui.articleText.replaceChildren(container);
   ui.sourceLink.href=round.source||'https://en.wikipedia.org/';
   ui.sourceLink.hidden=!round.finishedAt||!round.source;
-  ui.articleBadge.textContent=round.finishedAt?tr(round.revealed?'revealed':'solved'):'';
-  ui.articleBadge.hidden=!round.finishedAt;ui.articleBadge.classList.toggle('done',!!round.finishedAt&&!round.revealed);
+  ui.articleBadge.textContent=round.finishedAt?tr(round.abandoned?'revealed':'solved'):'';
+  ui.articleBadge.hidden=!round.finishedAt;ui.articleBadge.classList.toggle('done',!!round.finishedAt&&!round.abandoned);
   renderClueControls();
 }
 function exactHits(guess){return tokenize(round.extract).filter(x=>isWord(x)&&sameWord(x,guess,round.language)).length;}
@@ -286,7 +298,7 @@ async function startRound({route=null}={}){
   if(route && route.language!==language)setLanguage(route.language);
   epoch++;const captured=epoch;
   if(controller)controller.abort();controller=new AbortController();
-  pending.clear();choosingClue=false;setBusy(true);articleStatus='';showMessage();ui.input.value='';
+  pending.clear();choosingClue=false;unrecognizedWord='';setBusy(true);articleStatus='';showMessage();ui.input.value='';
   let info=route;
   if(info?.key){activeRoute=info.key;const old=loadSaved(info.key);
     if(old){round=old;addSeen(old.title);save();setBusy(false);renderAll();prepareSemantic();return;}
@@ -333,14 +345,30 @@ function challengeUrl(){return activeRoute==='practice'?location.origin+location
 function shareChallenge(){if(round) return shareText(tr('challenge')+'\n'+challengeUrl());}
 function shareResult(){return shareText(tr('result',round.guesses.length,formatElapsed(round.finishedAt-round.startedAt))+'\n'+challengeUrl());}
 function closeDialog(id){const dlg=$(id);if(dlg.open)dlg.close();}
+function showFullArticle(){
+  closeDialog('revealDialog');closeDialog('winDialog');
+  if(!round||!revealRound(round))return;
+  choosingClue=false;
+  showMessage();save();setBusy(false);renderAll();
+  ui.maskedTitle.focus({preventScroll:true});
+}
 function setupEvents(){
   ui.form.addEventListener('submit',e=>{
     e.preventDefault();if(!round||busy||round.finishedAt)return;
-    const value=normalizeWord(ui.input.value);
+    const original=ui.input.value;
+    const value=normalizeWord(original);
     if(!value){showMessage('word','error');return;}
-    if(round.guesses.includes(value)){showMessage('duplicate','error');return;}
-    if(!/^[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*$/u.test(value)){showMessage('oneWord','error');return;}
-    setBusy(true);requestScore(value);
+    if(round.guesses.includes(value)){
+      ui.input.value='';ui.input.focus({preventScroll:true});
+      showMessage('duplicate','error');return;
+    }
+    if(!/^[\p{L}\p{N}]+(?:[’‘'-][\p{L}\p{N}]+)*$/u.test(original.trim().normalize('NFKC'))){showMessage('oneWord','error');return;}
+    const known=hasConcept(value,round.language)||exactHits(value)>0||
+      tokenize(round.title).some(token=>isWord(token)&&sameWord(token,value,round.language));
+    const checkSpelling=value!==unrecognizedWord&&!known&&!/\d/.test(value);
+    unrecognizedWord='';
+    ui.input.value='';
+    setBusy(true);requestScore(value,false,original,checkSpelling);
   });
   $('newButton').addEventListener('click',()=>startRound());
   $('shareButton').addEventListener('click',shareChallenge);
@@ -348,14 +376,12 @@ function setupEvents(){
     choosingClue=!choosingClue;renderClueControls();
     showMessage(choosingClue?'chooseClue':'');
   });
-  $('revealButton').addEventListener('click',()=>$('revealDialog').showModal());
-  $('confirmReveal').addEventListener('click',()=>{
-    closeDialog('revealDialog');
-    if(!round||!revealRound(round))return;
-    choosingClue=false;
-    showMessage();save();setBusy(false);renderAll();
-    ui.maskedTitle.focus({preventScroll:true});
+  $('revealButton').addEventListener('click',()=>{
+    if(round?.finishedAt)showFullArticle();
+    else $('revealDialog').showModal();
   });
+  $('confirmReveal').addEventListener('click',showFullArticle);
+  $('viewArticleButton').addEventListener('click',showFullArticle);
   document.addEventListener('keydown',event=>{
     if(event.key==='Escape'&&choosingClue){choosingClue=false;renderClueControls();showMessage();}
   });

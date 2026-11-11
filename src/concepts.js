@@ -1,4 +1,4 @@
-import {normalizeWord,stemWord} from './core.js?v=7';
+import {normalizeWord,stemWord} from './core.js?v=8';
 
 /** Offline semantic fallback and ontology augmentation. This is a directed, weighted lexical graph, not a pretrained embedding. */
 const GROUPS = [
@@ -14,7 +14,7 @@ const GROUPS = [
  'fly:flies,wings,flying,flight',
  'bird:eagle,owl,sparrow,parrot,penguin,feather,nest',
  'fish:salmon,shark,trout,tuna,gill',
- 'plant:tree,flower,fruit,leaf,grass,forest,seed,root,photosynthesis',
+ 'plant:tree,flower,fruit,leaf,grass,forest,seed,root,photosynthesis,cactus,succulent,fern,moss,angiosperm',
  'tree:oak,pine,willow,bark,wood,branch',
  'nature:environment,biology,land,water,animal,plant,forest,earth,ecology',
  'environment:climate,weather,ecosystem,habitat,pollution,conservation',
@@ -25,6 +25,18 @@ const GROUPS = [
  'earth:planet,world,geology,environment,continent',
  'planet:mars,jupiter,venus,saturn,mercury,neptune,uranus',
  'astronomy:star,planet,galaxy,universe,moon,sun,space',
+ 'moon:satellite,lunar,orbit,earth,gravity,tide,crater,apollo',
+ 'sun:star,earth,moon,orbit,eclipse,solar,planet',
+ 'orbit:satellite,gravity,ellipse,rotation,period',
+ 'geology:lithosphere,crust,mantle,tectonics,continent,earthquake',
+ 'hormone:insulin,glucose,metabolism,pancreas,blood',
+ 'wave:frequency,sound,pitch,period,signal,observer',
+ 'geometry:triangle,angle,hypotenuse,side,square,area',
+ 'electronics:semiconductor,transistor,voltage,current,amplifier,circuit,signal',
+ 'fencing:sword,foil,sabre,saber,épée,blade,duel',
+ 'revolution:france,democracy,monarchy,republic,uprising',
+ 'federalism:government,state,province,autonomy,federation',
+ 'design:architecture,craft,school,art,bauhaus,production',
  'weather:rain,snow,wind,storm,cloud,temperature,humidity',
  'music:musician,song,instrument,orchestra,melody,rhythm,composer,album,genre',
  'instrument:piano,guitar,violin,drum,trumpet,flute,keyboard',
@@ -86,11 +98,28 @@ const GERMAN_GROUPS=[
   ['farbe','rot orange gelb grün blau violett rosa braun grau schwarz weiß'],
   ['kontinent','europa asien afrika antarktika australien amerika'],
   ['planet','merkur venus erde mars jupiter saturn uranus neptun'],
+  ['astronomie','himmelskörper weltraum universum stern galaxie planet mond sonne satellit komet umlaufbahn sonnensystem'],
+  ['mond','satellit trabant erdmond himmelskörper erde mondoberfläche mondphase krater gezeiten umlaufbahn gravitation'],
+  ['sonne','stern erde mond sonnensystem umlaufbahn sonnenlicht sonnenfinsternis planet'],
+  ['umlaufbahn','orbit umlauf rotation gravitation ellipse satellit periode'],
+  ['geologie','gestein lithosphäre erdkruste erdmantel tektonik kontinent erdbeben'],
+  ['hormon','insulin bauchspeicheldrüse stoffwechsel blutzucker glucose glukose proteohormon polypeptidhormon'],
+  ['diabetes','insulin blutzucker glucose glukose bauchspeicheldrüse stoffwechsel'],
+  ['welle','frequenz schall signal sender empfänger wellenlänge ton bewegung'],
+  ['geometrie','dreieck winkel kathete hypotenuse quadrat fläche seite euklid'],
+  ['elektronik','halbleiter transistor strom spannung schaltung verstärker signal'],
+  ['fechten','sport kampfsport duell schwert säbel degen florett waffe'],
+  ['revolution','frankreich republik demokratie monarchie aufklärung menschenrechte aufstand'],
+  ['föderalismus','staat bundesland bundesstaat gliedstaat bund autonomie föderation konfederation'],
+  ['architektur','bauhaus gotik kirche kathedrale kunst kunstschule handwerk design romanik renaissance'],
+  ['krieg','konflikt truppen armee schlacht frieden bündnis territorialkrieg religionskrieg'],
+  ['religion','glaube gott kirche buddhismus christentum islam hinduismus lehre'],
+  ['amphibie','lurch schwanzlurch frosch salamander molch larve axolotl metamorphose'],
   ['tier','säugetier vogel fisch reptil amphibie insekt'],
   ['säugetier','mensch hund katze pferd wal delfin elefant fledermaus'],
   ['insekt','mücke fliege biene ameise schmetterling käfer wespe libelle'],
   ['vogel','adler eule spatz papagei pinguin feder nest'],
-  ['pflanze','baum blume gras moos farn bambus kaktus'],
+  ['pflanze','baum blume gras moos farn bambus kaktus kakteen kakteengewächse sukkulente bedecktsamer'],
   ['baum','eiche kiefer weide birke buche ahorn wurzel rinde'],
   ['meer','ozean küste insel riff koralle fisch wal'],
   ['gewässer','fluss see teich strom bach meer'],
@@ -120,7 +149,7 @@ edge('kalender','monat',.78,'de');edge('monat','kalender',.72,'de');
 /** Avoid transitive false positives through encyclopedic umbrella categories.
  * For example, mathematics -> science -> biology must not be treated as a
  * close relationship, even though both disciplines share the science parent. */
-const BROAD_HUBS = new Set('science nature biology geography mathematics physics chemistry music religion sport art medicine technology environment history'.split(' '));
+const BROAD_HUBS = new Set('science nature biology geography mathematics physics chemistry music religion sport art medicine technology environment history wissenschaft natur biologie erde wasser mathematik physik chemie musik religion sport kunst medizin technik umwelt geschichte staat tier'.split(' '));
 /** Short, weighted lexical paths only: no unrestricted graph diffusion. */
 function conceptNeighbors(word,language){
   const graph=graphs[language];
@@ -143,12 +172,35 @@ function conceptNeighbors(word,language){
   return seen;
 }
 export function conceptSimilarity(a,b,language='en'){
-  const neighbors=conceptNeighbors(conceptKey(a,language),language);
-  return neighbors.get(conceptKey(b,language))??0;
+  return conceptBatch(a,[b],language)[b];
+}
+export function hasConcept(word,language){
+  return graphs[language].has(normalizeWord(word));
 }
 export function conceptBatch(guess,targets,language='en'){
-  const neighbors=conceptNeighbors(conceptKey(guess,language),language);
-  return Object.fromEntries(targets.map(target=>[target,neighbors.get(conceptKey(target,language))??0]));
+  const keys=conceptKeys(guess,language);
+  const paths=keys.map(key=>conceptNeighbors(key,language));
+  return Object.fromEntries(targets.map(target=>{
+    const targetKeys=conceptKeys(target,language);
+    let best=0;
+    for(const [i,path] of paths.entries()){
+      for(const [j,key] of targetKeys.entries()){
+        const weight=(i===0?1:.88)*(j===0?1:.88);
+        best=Math.max(best,(path.get(key)??0)*weight);
+      }
+    }
+    return [target,best];
+  }));
+}
+// Restrict compound matching to productive, unambiguous stems.
+const COMPOUND_ROOTS=['sonne','mond','erde','himmel','planet','satellit','krieg','staat','religion','strom','schall','winkel','gestein','farbe','schwert','wald','insekt'];
+function conceptKeys(value,language){
+  const word=normalizeWord(value);
+  const key=conceptKey(word,language);
+  if(language!=='de')return [key];
+  return [key,...COMPOUND_ROOTS.filter(root=>root!==key &&
+    (word.length>=root.length+3 && word.startsWith(root) ||
+     word.length>=root.length+3 && word.endsWith(root)))];
 }
 function conceptKey(value,language){
   const word=normalizeWord(value);

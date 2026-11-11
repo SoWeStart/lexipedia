@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {isSemanticCandidate, calibratedEmbeddingScore, createRound, applyGuess, tokenState, mergeHints, useClue, revealRound, CLUE_LIMIT, getTitleProgress} from '../src/core.js';
+import {isSemanticCandidate, calibratedEmbeddingScore, rankEmbeddingHints, createRound, applyGuess, tokenState, mergeHints, useClue, revealRound, CLUE_LIMIT, getTitleProgress} from '../src/core.js';
 import {conceptBatch} from '../src/concepts.js';
 
 test('function words never become semantic hints even with pathological model scores',()=>{
@@ -111,4 +111,59 @@ test('three individual letter clues persist and revealing the article ends the r
   assert.equal(getTitleProgress(restored).complete,false);
   assert.equal(applyGuess(restored,'Vulkan').accepted,false);
   assert.equal(revealRound(restored),false);
+});
+
+test('Moon clues lead from astronomy and sun to visible article terms without giving away the title',()=>{
+  const targets=['mond','erdmond','satellit','erde','sonnensystems','ist','der','wahl'];
+  for(const guess of ['astronomie','sonne']){
+    const round=createRound({title:'Mond',extract:'Der Erdmond ist ein Satellit der Erde und Teil des Sonnensystems.',language:'de'});
+    const scores=conceptBatch(guess,targets,'de');
+    applyGuess(round,guess,scores);
+    for(const word of ['Erdmond','Satellit','Sonnensystems'])assert.equal(tokenState(round,word).type,'near',guess+' '+word);
+    for(const word of ['ist','der','Wahl'])assert.equal(tokenState(round,word).type,'hidden');
+    assert.equal(tokenState(round,'Mond',true).type,'hidden');
+  }
+});
+
+test('semantic coverage extends across both languages and keeps unrelated domains apart',()=>{
+  const cases=[
+    ['de','geologie','gesteinsschmelze','bundesland'],
+    ['de','pflanze','kakteengewächse','spannung'],
+    ['de','dreieck','katheten','satellit'],
+    ['de','schwert','florett','hormon'],
+    ['de','diabetes','bauchspeicheldrüse','quadrat'],
+    ['de','demokratie','menschenrechte','mond'],
+    ['de','welle','empfänger','religion'],
+    ['en','plant','cacti','parliament'],
+    ['en','orbit','tides','insulin'],
+    ['en','province','federalism','triangle'],
+    ['en','triangle','hypotenuse','orbit'],
+    ['en','electronics','semiconductor','monarchy'],
+  ];
+  for(const [lang,guess,related,unrelated] of cases){
+    const scores=conceptBatch(guess,[related,unrelated],lang);
+    assert.ok(scores[related]>=.38,`${guess} → ${related}`);
+    assert.ok(scores[unrelated]<.38,`${guess} ↛ ${unrelated}`);
+  }
+});
+
+test('model-only hints retain strong candidates and leave room for curated hints',()=>{
+  const ranked=rankEmbeddingHints([
+    ['generic',.72],['distant',.75],['strongest',.91],
+    ...Array.from({length:8},(_,i)=>['related'+i,.85-i*.002]),
+  ]);
+  assert.equal(ranked[0][0],'strongest');
+  assert.equal(ranked.length,6);
+  assert.ok(ranked.every(([,score])=>score<=.67));
+  assert.ok(ranked.every(([word])=>word!=='generic'&&word!=='distant'));
+});
+
+test('showing the text after a win preserves the win and its time',()=>{
+  const round=createRound({title:'Mond',extract:'Der Mond ist ein Satellit.',language:'de'});
+  assert.equal(applyGuess(round,'Mond').won,true);
+  const finishedAt=round.finishedAt;
+  assert.equal(revealRound(round),true);
+  assert.equal(round.finishedAt,finishedAt);
+  assert.equal(round.abandoned,undefined);
+  assert.equal(tokenState(round,'Satellit').type,'revealed');
 });

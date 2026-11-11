@@ -27,7 +27,11 @@ window.fetch=async url=>({
 class TestWorker {constructor(){this.onmessage=null;}
  postMessage(d){const send=msg=>setTimeout(()=>this.onmessage?.({data:{epoch:d.epoch,...msg}}),5);
  if(d.type==='init'){this.text=d.text;send({type:'ready',mode:'basic',detail:'Grundmodus'});}
- if(d.type==='score'){const scores=conceptBatch(d.guess,[...new Set(tokenize(this.text).filter(isWord).map(normalizeWord))]);send({type:'score',requestId:d.requestId,guess:d.guess,scores});}
+ if(d.type==='score'){
+   if(d.checkSpelling&&d.guess==='mosqutio'){send({type:'spelling',requestId:d.requestId,suggestion:'mosquito'});return;}
+   const scores=conceptBatch(d.guess,[...new Set(tokenize(this.text).filter(isWord).map(normalizeWord))]);
+   send({type:'score',requestId:d.requestId,guess:d.guess,scores});
+ }
  }
  terminate(){}
 }
@@ -59,6 +63,11 @@ with sync_playwright() as playwright:
   assert page.locator('#guessInput').get_attribute('placeholder')=='English word'
   assert page.locator('.word.hidden').count()>3
   assert page.locator('#maskedTitle .word.hidden').count()==1
+  page.locator('#guessInput').fill('mosqutio')
+  page.locator('#guessInput').press('Enter')
+  page.get_by_text('Did you mean “mosquito”?',exact=False).wait_for()
+  assert page.locator('#guessInput').input_value()=='mosqutio'
+  assert page.locator('#guessCount').inner_text()=='0'
   # A tap or keyboard action temporarily overlays the exact letter count.
   hidden=page.locator('#articleText .word.hidden').first
   expected=hidden.get_attribute('data-length')
@@ -79,10 +88,19 @@ with sync_playwright() as playwright:
    page.locator('#guessInput').fill(word)
    page.locator('#submitButton').click()
    page.wait_for_function('(n)=>document.querySelector("#guessCount").textContent===String(n)',arg=i,timeout=12000)
+   assert page.locator('#guessInput').input_value()==''
+   if i==1:
+    page.locator('#guessInput').fill(word)
+    page.locator('#guessInput').press('Enter')
+    assert page.locator('#guessInput').input_value()==''
+    assert page.locator('#guessCount').inner_text()=='1'
   assert page.locator('#maskedTitle .word.exact').count()==1
   assert page.locator('#winDialog').evaluate('(el)=>el.open')
   assert page.locator('#articleBadge').inner_text()=='SOLVED'
   assert page.locator('#sourceLink').is_visible()
+  page.locator('#viewArticleButton').click()
+  assert page.locator('#articleText .word.hidden').count()==0
+  assert page.locator('#articleBadge').inner_text()=='SOLVED'
   page.screenshot(path=f'/mnt/data/lexipedia-{name}-win.png',full_page=True)
   print(name,'OK, 5 guesses, win dialog, errors:',errors)
   assert not errors

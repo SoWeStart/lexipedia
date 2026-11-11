@@ -26,7 +26,9 @@ A free, mobile-friendly, Wikipedia article word-discovery game with unlimited ro
 - First model download is about 23 MB, plus Transformers.js/WASM dependencies, and can take time on mobile devices. The fallback mode remains playable while the download runs.
 - Sentence embeddings are designed mainly for sentences, so **word-level similarity needs evaluation**. Scores are not probabilities. This is an MVP requiring broader model-quality and mobile-device testing before claiming parity with Pedantle.
 - The semantic filter rejects weaker correlations. Language-specific lexical graphs provide hints before the English or multilingual model is ready.
+- Curated relationships and selected German compound stems take priority over model-only hints. A guess can add up to six model-only hints. The regression tests cover related and unrelated words across topics, including astronomy, history, medicine and geometry.
 - Hint mode reveals the first letter of a selected word, up to three times per round. Reveal shows the title and introduction and ends the round without a win.
+- After a win, **Show full text** fills in the introduction and keeps the win. If the local spell checker flags a guess, the input is kept for editing. Press Enter again to use the original spelling.
 - Shared links supply the same article but there is **no synchronized live multiplayer** or server-verified high-score leaderboard. Friends compare results manually.
 - New rounds draw from a curated pool across eleven topics. Selection favors intermediate articles and gives recently played topics less weight. The game checks the current Wikipedia introduction and prefers unplayed articles, then reuses the least recently played eligible articles. The finite pool supports unlimited rounds.
 - Shared links identify the selected article and round. The title is encoded, not encrypted. Existing seed links still use the original pool.
@@ -76,6 +78,7 @@ The project includes `.nojekyll` for static deployment. Node dependencies are no
 - `src/concepts.js`: small fallback concept graph, deterministic scores.
 - `src/articles.js`: shared challenge vocabulary and offline practice text.
 - `src/wiki.js`: Wikipedia API integration and validation.
+- `src/spelling.js`: optional local spelling checks with [nspell](https://github.com/wooorm/nspell) and [Hunspell dictionaries](https://github.com/wooorm/dictionaries) loaded from jsDelivr.
 - `src/semantic-worker.js`: asynchronous model inference without freezing the UI.
 - `src/app.js`: game state, persistence, DOM rendering, sharing and interaction.
 - `styles.css`: responsive editorial/archival UI (paper and ink), intentionally without dashboard-style cards or starter-word chips.
