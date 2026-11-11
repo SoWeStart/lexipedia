@@ -17,15 +17,15 @@ A free, mobile-friendly, Wikipedia article word-discovery game with unlimited ro
 
 1. The browser requests a suitable introduction through the official English Wikipedia Action API (CORS permitted via `origin=*`). The article title and introduction are held locally for the round.
 2. Each guess is first checked for exact matches and common English word inflections.
-3. A Web Worker computes semantic similarity between the guessed word and each unique article word. It uses `Xenova/all-MiniLM-L6-v2` (Apache 2.0) via Transformers.js (also Apache 2.0) and normalized cosine similarity.
-4. A small graph of lexical relations supplements the scores and keeps a limited fallback available if the model cannot load. **The fallback is deliberately less comprehensive than a pretrained semantic model.**
+3. A Web Worker computes semantic similarity between the guessed word and each unique article word. It uses `Xenova/all-MiniLM-L6-v2` (Apache 2.0) via Transformers.js (also Apache 2.0) and conservative, calibrated cosine similarity. Grammatical function words are excluded from semantic hints (but can still be revealed by exact guesses).
+4. A short-path lexical graph (with broad-topic hub restrictions to avoid unrelated links) supplements the scores and keeps a limited fallback available if the model cannot load. **The fallback is deliberately less comprehensive than a pretrained semantic model.**
 5. For each token, the highest similarity among previous guesses is displayed. The player wins only when all article title words are guessed exactly.
 
 ### Limitations / tradeoffs
 
 - First model download is about 23 MB, plus Transformers.js/WASM dependencies, and can take time on mobile devices. The fallback mode remains playable while the download runs.
 - Sentence embeddings are designed mainly for sentences, so **word-level similarity needs evaluation**. Scores are not probabilities. This is an MVP requiring broader model-quality and mobile-device testing before claiming parity with Pedantle.
-- The basic fallback uses a curated conceptual graph and cannot meaningfully score every English word.
+- The semantic filter deliberately rejects weaker correlations to reduce misleading hints; it may also omit weak but valid associations. The basic fallback uses a curated conceptual graph and cannot meaningfully score every English word.
 - Shared links supply the same article but there is **no synchronized live multiplayer** or server-verified high-score leaderboard. Friends compare results manually.
 - For seeded games, the curated pool is finite (hundreds of pages); Wikipedia Random fetches new articles without a daily limit. A random shared title is encoded in the URL rather than protected cryptographically.
 - Reading the browser's source, network traffic or local saved state can reveal the solution. This is a recreational game, not a cheat-proof competitive platform.
@@ -48,7 +48,7 @@ Open `http://localhost:8000/` in a modern browser. For HTTPS deployment, GitHub 
 npm test
 ```
 
-Pure unit tests cover word inflections, semantically weighted lexical graph, article parsing, reproducible seed selection, share URL decoding, and winning logic. Browser integration tests can be run with Playwright (not bundled as a dependency). The actual hosted MiniLM/ONNX download cannot be fully verified in a network-isolated test environment.
+Pure unit tests also enforce the `animal` vs. `a` / `is` false-positive regression and reject broad-hub leakage. Other tests cover word inflections, semantically weighted lexical graph, article parsing, reproducible seed selection, share URL decoding, and winning logic. Browser integration tests can be run with Playwright (not bundled as a dependency). The actual hosted MiniLM/ONNX download cannot be fully verified in a network-isolated test environment.
 
 ## Publish for free via GitHub Pages
 
@@ -76,6 +76,6 @@ The project includes `.nojekyll` for static deployment. Node dependencies are no
 - `src/wiki.js`: Wikipedia API integration and validation.
 - `src/semantic-worker.js`: asynchronous model inference without freezing the UI.
 - `src/app.js`: game state, persistence, DOM rendering, sharing and interaction.
-- `styles.css`: mobile-first responsive UI.
+- `styles.css`: responsive editorial/archival UI (paper and ink), intentionally without dashboard-style cards or starter-word chips.
 
 For privacy the app has no analytics, no login and no third-party tracking scripts. The browser contacts Wikimedia for article retrieval and Hugging Face/CDN for the model.
