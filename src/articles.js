@@ -1,4 +1,4 @@
-// Curated article titles for reproducible seed-based challenges. Random Wikipedia mode offers unlimited additional rounds.
+// Keep the order stable so existing seed-based challenges resolve as before.
 export const ARTICLES = [
  'Mosquito','Butterfly','Bee','Ant','Dragonfly','Whale','Dolphin','Shark','Octopus','Jellyfish','Penguin','Eagle','Owl','Bat','Wolf','Fox','Elephant','Giraffe','Hippopotamus','Tiger',
  'Lion','Panda','Koala','Kangaroo','Platypus','Turtle','Crocodile','Frog','Chameleon','Coral','Mushroom','Bamboo','Oak','Pine','Sunflower','Orchid','Cactus','Rose','Moss','Fern',

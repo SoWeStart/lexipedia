@@ -5,7 +5,7 @@ A free, mobile-friendly, Wikipedia article word-discovery game with unlimited ro
 ## Features
 
 - No sign-up, no subscriptions, no daily puzzle limit
-- Surprise Wikipedia articles (random) and reproducible challenges via a shareable link
+- Curated Wikipedia articles and reproducible challenges via a shareable link
 - Word-by-word reveal, case-insensitive morphological matching (`fly` / `flies`, `mosquito` / `mosquitoes`)
 - Semantic hints for every hidden word in the article, with more relevant guesses replacing previous hints
 - No semantic hints in the article title: all title words must be guessed exactly
@@ -27,7 +27,8 @@ A free, mobile-friendly, Wikipedia article word-discovery game with unlimited ro
 - Sentence embeddings are designed mainly for sentences, so **word-level similarity needs evaluation**. Scores are not probabilities. This is an MVP requiring broader model-quality and mobile-device testing before claiming parity with Pedantle.
 - The semantic filter deliberately rejects weaker correlations to reduce misleading hints; it may also omit weak but valid associations. The basic fallback uses a curated conceptual graph and cannot meaningfully score every English word.
 - Shared links supply the same article but there is **no synchronized live multiplayer** or server-verified high-score leaderboard. Friends compare results manually.
-- For seeded games, the curated pool is finite (hundreds of pages); Wikipedia Random fetches new articles without a daily limit. A random shared title is encoded in the URL rather than protected cryptographically.
+- New rounds draw from a curated pool across eleven topics. Selection favors intermediate articles and gives recently played topics less weight. The game checks the current Wikipedia introduction and prefers unplayed articles, then reuses the least recently played eligible articles. The finite pool supports unlimited rounds.
+- Shared links identify the selected article and round. The title is encoded, not encrypted. Existing seed links still use the original pool.
 - Reading the browser's source, network traffic or local saved state can reveal the solution. This is a recreational game, not a cheat-proof competitive platform.
 - The online Wikipedia API and third-party model CDN must be reachable. Existing rounds and the basic lexicon remain partially usable offline; new Wikipedia articles cannot be fetched offline.
 - There is no fee for the app itself, but an internet connection/data plan may have costs.

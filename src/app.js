@@ -1,7 +1,7 @@
-import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, titleWords, encodeTitle, decodeTitle, seedIndex} from './core.js';
+import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, titleWords, encodeTitle, decodeTitle} from './core.js';
 import {conceptBatch} from './concepts.js';
-import {ARTICLES} from './articles.js';
-import {fetchSeededArticle,fetchRandomArticle,fetchTitle,practiceArticle} from './wiki.js';
+import {titleKey} from './pool.js';
+import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js';
 
 const $=id=>document.getElementById(id);
 const ui={form:$('guessForm'),input:$('guessInput'),submit:$('submitButton'),message:$('message'),history:$('history'),historyCount:$('historyCount'),guessCount:$('guessCount'),elapsed:$('elapsed'),titleProgress:$('titleProgress'),progressBar:$('progressBar'),maskedTitle:$('maskedTitle'),articleText:$('articleText'),articleBadge:$('articleBadge'),sourceLink:$('sourceLink'),mode:$('modeStatus')};
@@ -14,25 +14,38 @@ function safeStorageSet(key,val){try{localStorage.setItem(key,val)}catch{/*Stora
 function routeInfo(){
   const p=new URLSearchParams(location.search);
   const t=p.get('t'),s=p.get('seed');
-  if(t){try{return {kind:'title',title:decodeTitle(t),key:'t:'+t}}catch{/*Invalid link*/}}
+  if(t){
+    const id=p.get('round');
+    try{return {kind:'title',title:decodeTitle(t),key:'t:'+t+(/^[a-z0-9-]{4,40}$/i.test(id??'')?':'+id:'')}}catch{/*Invalid link*/}
+  }
   if(s&&/^[a-z0-9-]{4,40}$/i.test(s))return {kind:'seed',seed:s,key:'s:'+s};
   return null;
 }
-function setSeedRoute(seed){
-  const url=new URL(location.href);url.search='';url.searchParams.set('seed',seed);history.replaceState({},'',url);
-  return {kind:'seed',seed,key:'s:'+seed};
-}
 function setTitleRoute(title){
-  const code=encodeTitle(title),url=new URL(location.href);url.search='';url.searchParams.set('t',code);history.replaceState({},'',url);
-  return {kind:'title',title,key:'t:'+code};
+  const code=encodeTitle(title),id=makeSeed(),url=new URL(location.href);
+  url.search='';url.searchParams.set('t',code);url.searchParams.set('round',id);history.replaceState({},'',url);
+  return {kind:'title',title,key:'t:'+code+':'+id};
 }
 function makeSeed(){const data=crypto.getRandomValues(new Uint32Array(2));return Array.from(data,n=>n.toString(36)).join('-');}
-function lastGames(){try{return JSON.parse(safeStorageGet('lexipedia:seen')||'[]')}catch{return []}}
-function addSeen(title){const values=lastGames().filter(v=>v!==title);values.unshift(title);safeStorageSet('lexipedia:seen',JSON.stringify(values.slice(0,160)));}
-function nextSeed(){
-  const seen=new Set(lastGames().slice(0,90));
-  for(let i=0;i<28;i++){const seed=makeSeed(),title=ARTICLES[seedIndex(seed,ARTICLES.length)];if(!seen.has(title))return seed;}
-  return makeSeed();
+function lastGames(){
+  try{
+    const stored=JSON.parse(safeStorageGet('lexipedia:seen')||'[]');
+    return Array.isArray(stored)?stored.filter(title=>typeof title==='string'):[];
+  }catch{return []}
+}
+let seen=lastGames();
+function roundHistory(){
+  const titles=new Map();
+  for(const title of [...lastGames(),...seen]){
+    const key=titleKey(title);
+    if(!titles.has(key))titles.set(key,title);
+  }
+  return [...titles.values()];
+}
+function addSeen(title){
+  const key=titleKey(title);
+  seen=[title,...roundHistory().filter(value=>titleKey(value)!==key)];
+  safeStorageSet('lexipedia:seen',JSON.stringify(seen));
 }
 function showMessage(text,kind=''){ui.message.textContent=text;ui.message.className='message'+(kind?' '+kind:'');}
 function setMode(text,mode='basic'){
@@ -196,24 +209,23 @@ function showWin(){
   $('winStats').textContent=`Du hast den Artikel mit ${round.guesses.length} Versuchen in ${formatElapsed(round.finishedAt-round.startedAt)} gefunden.`;
   if(!$('winDialog').open)$('winDialog').showModal();
 }
-async function startRound({mode='seed',route=null}={}){
+async function startRound({route=null}={}){
   epoch++;const captured=epoch;
   if(controller)controller.abort();controller=new AbortController();
   pending.clear();setBusy(true);showFullArticle=false;
   let info=route;
-  if(mode==='seed'&&!info)info=setSeedRoute(nextSeed());
   if(info?.key){activeRoute=info.key;const old=loadSaved(info.key);
-    if(old){round=old;setBusy(false);renderAll();prepareSemantic();showMessage(old.finishedAt?'Diese Runde ist bereits gelöst. Starte ein neues Rätsel.':'Dein bisheriger Spielstand wurde wiederhergestellt.');return;}
+    if(old){round=old;addSeen(old.title);setBusy(false);renderAll();prepareSemantic();showMessage(old.finishedAt?'Diese Runde ist bereits gelöst. Starte ein neues Rätsel.':'Dein bisheriger Spielstand wurde wiederhergestellt.');return;}
   }
   round=null;ui.articleText.innerHTML='<div class="article-loading"><div class="loading-spinner"></div> Lade Wikipedia-Artikel …</div>';
   ui.maskedTitle.textContent='••••••••';showMessage('Suche einen geeigneten Wikipedia-Artikel …');
   try{
     let article;
-    if(mode==='random')article=await fetchRandomArticle(controller.signal);
+    if(!info)article=await fetchCuratedArticle(roundHistory(),controller.signal);
     else if(info?.kind==='title')article=await fetchTitle(info.title,controller.signal);
     else article=await fetchSeededArticle(info.seed,controller.signal);
     if(captured!==epoch)return;
-    if(mode==='random')info=setTitleRoute(article.title);
+    if(!info)info=setTitleRoute(article.title);
     activeRoute=info.key;
     const prior=loadSaved(info.key);
     round=prior||createRound({...article,seed:info.kind==='seed'?info.seed:null});
@@ -253,7 +265,6 @@ function setupEvents(){
     setBusy(true);requestScore(value);
   });
   $('newButton').addEventListener('click',()=>startRound());
-  $('randomButton').addEventListener('click',()=>startRound({mode:'random'}));
   $('shareButton').addEventListener('click',shareChallenge);
   $('helpButton').addEventListener('click',()=>$('helpDialog').showModal());
   $('nextWinButton').addEventListener('click',()=>{closeDialog('winDialog');startRound();});

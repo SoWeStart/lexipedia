@@ -8,7 +8,7 @@ css=(ROOT/'styles.css').read_text()
 css=re.sub(r'@import[^;]+;','',css)
 html=html.replace('<link rel="stylesheet" href="./styles.css">','<style>'+css+'</style>')
 html=re.sub(r'<script type="module" src="./src/app.js"></script>','',html)
-modules=['core','concepts','articles','wiki','app']
+modules=['core','concepts','articles','pool','wiki','app']
 source='\n'.join((ROOT/f'src/{name}.js').read_text() for name in modules)
 source=re.sub(r'^import .*?;\s*$','',source,flags=re.MULTILINE)
 source=re.sub(r'\bexport (function|const|class|async function)\b',r'\1',source)
@@ -30,7 +30,7 @@ class TestWorker {constructor(){this.onmessage=null;}
 window.Worker=TestWorker;
 window.navigator.serviceWorker=undefined;
 """
-script='const MOCK_FIXTURE='+fixture+';\n'+source.replace('ensureWorker();setupEvents();',prelude+'\nensureWorker();setupEvents();')
+script='const MOCK_FIXTURE='+fixture+';\nMOCK_FIXTURE.query.pages[0].ns=0;\n'+source.replace('ensureWorker();setupEvents();',prelude+'\nensureWorker();setupEvents();')
 with sync_playwright() as playwright:
  browser=playwright.chromium.launch(headless=True,executable_path='/usr/bin/chromium',args=['--no-sandbox','--disable-dev-shm-usage'])
  for name,w,h in [('desktop',1280,900),('mobile',390,844)]:
