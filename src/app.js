@@ -89,6 +89,23 @@ function requestScore(word,replay=false){
   const requestId=++serial;
   pending.set(requestId,{word,replay});worker.postMessage({type:'score',epoch,guess:word,requestId});
 }
+function enableLengthPeek(span,token){
+  const length=[...token].length;
+  span.dataset.length=String(length);
+  span.tabIndex=0;
+  span.setAttribute('role','button');
+  span.setAttribute('aria-label',`Verdecktes Wort mit ${length} Buchstaben. Wortlänge anzeigen.`);
+  let timer;
+  const peek=()=>{
+    clearTimeout(timer);
+    span.classList.add('length-peek');
+    timer=setTimeout(()=>span.classList.remove('length-peek'),1800);
+  };
+  span.addEventListener('click',peek);
+  span.addEventListener('keydown',event=>{
+    if(event.key==='Enter'||event.key===' '){event.preventDefault();peek();}
+  });
+}
 function createArticleWord(token,inTitle=false){
   const state=tokenState(round,token,inTitle);
   if(state.type==='punct')return document.createTextNode(token);
@@ -96,15 +113,13 @@ function createArticleWord(token,inTitle=false){
   if(state.type==='hidden'){
     const len=[...token].length;
     span.style.width=`${Math.min(21,Math.max(1.5,len*.67))}ch`;
-    span.title=`${len} Zeichen`;
-    span.tabIndex=0;span.setAttribute('role','button');span.setAttribute('aria-label',`Verdecktes Wort mit ${len} Zeichen`);
-    span.addEventListener('click',()=>{span.title=`Wortlänge: ${len} Zeichen`;showMessage(`Dieses verdeckte Wort hat ${len} Zeichen.`);});
-    span.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();span.click();}});
+    enableLengthPeek(span,token);
   }else if(state.type==='exact')span.textContent=token;
   else if(state.type==='near'){
     span.textContent=state.label;
     span.classList.add(state.score>=.65?'high':state.score>=.49?'med':'low');
     span.title=`Semantischer Hinweis: ${state.label}, Ähnlichkeit ${Math.round(state.score*100)} / 100`;
+    enableLengthPeek(span,token);
   }
   if(showFullArticle && round.finishedAt && !inTitle){
     span.className='word revealed';span.textContent=token;span.style.width='';span.title='';span.removeAttribute('role');span.removeAttribute('tabindex');
