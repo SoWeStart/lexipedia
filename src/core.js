@@ -99,14 +99,27 @@ export function applyGuess(round, guess, scores={}) {
 }
 export function mergeHints(round,guess,scores={}) {
   const word=normalizeWord(guess);
+  // Four-digit years have a separate distance rule and never use model scores.
+  if(/^[12]\d{3}$/.test(word)){
+    for(const token of new Set(tokenize(round.extract))){
+      if(!/^[12]\d{3}$/.test(token))continue;
+      const distance=Math.abs(Number(word)-Number(token));
+      if(distance>0 && distance<=25)storeHint(round,token,word,.9-distance*.02);
+    }
+    return;
+  }
+  if(!isSemanticCandidate(word))return;
   for (const [target, rawScore] of Object.entries(scores)) {
     const targetWord=normalizeWord(target);
-    if (!isSemanticCandidate(word) || !isSemanticCandidate(targetWord) || sameWord(word,targetWord)) continue;
+    if (!isSemanticCandidate(targetWord) || sameWord(word,targetWord)) continue;
     const score=Math.min(1,Math.max(0,Number(rawScore)||0));
-    const previous=Object.hasOwn(round.hints,targetWord)?round.hints[targetWord]:undefined;
-    if (score >= 0.38 && (!previous || score > previous.score)) {
-      round.hints[targetWord] = {guess:word, score};
-    }
+    if(score>=.38)storeHint(round,targetWord,word,score);
+  }
+}
+function storeHint(round,target,guess,score){
+  const previous=Object.hasOwn(round.hints,target)?round.hints[target]:undefined;
+  if(!previous || score>previous.score){
+    round.hints[target]={guess,score};
   }
 }
 export function tokenState(round, token, inTitle=false) {

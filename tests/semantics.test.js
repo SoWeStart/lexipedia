@@ -44,3 +44,41 @@ test('biological topic progression is meaningful in the curated graph',()=>{
   assert.ok(animal.mammal>animal.physics);
   assert.equal(conceptBatch('mathematics',['biology']).biology,0, 'unrelated disciplines must not leak through science');
 });
+
+test('nearby years show the guess and closer guesses replace it',()=>{
+  const round=createRound({title:'1701',extract:'The events of 1701 followed those of 1699 and 1650.'});
+  applyGuess(round,'1700');
+  assert.equal(tokenState(round,'1701').label,'1700');
+  assert.equal(tokenState(round,'1701').type,'near');
+  assert.equal(tokenState(round,'1701',true).type,'hidden');
+  assert.equal(tokenState(round,'1650').type,'hidden');
+  assert.equal(tokenState(round,'1699').type,'near');
+  applyGuess(round,'1708');
+  assert.equal(tokenState(round,'1701').label,'1700');
+  assert.equal(applyGuess(round,'1701').won,true);
+  assert.equal(tokenState(round,'1701').type,'exact');
+});
+
+test('exact small numbers work without generating numeric hints from the model',()=>{
+  const round=createRound({title:'Example',extract:'There were 12 groups of 13 people in 1701.'});
+  applyGuess(round,'12',{13:.95,1701:.95});
+  assert.equal(tokenState(round,'12').type,'exact');
+  assert.equal(tokenState(round,'13').type,'hidden');
+  assert.equal(tokenState(round,'1701').type,'hidden');
+});
+
+test('calendar hints work without the model and preserve the function-word filter',()=>{
+  const targets=['november','september','may','months','monday','year','physics','is'];
+  for(const guess of ['september','month','months','calendar']){
+    const round=createRound({title:'November',extract:'November is a month and may be rainy.'});
+    applyGuess(round,guess,conceptBatch(guess,targets));
+    assert.equal(tokenState(round,'November').type,'near',guess);
+    assert.equal(tokenState(round,'November',true).type,'hidden');
+    assert.equal(tokenState(round,'may').type,'hidden');
+    assert.equal(tokenState(round,'is').type,'hidden');
+  }
+  assert.ok(conceptBatch('monday',['friday']).friday>=.38);
+  assert.ok(conceptBatch('summer',['winter']).winter>=.38);
+  assert.ok(conceptBatch('blue',['red']).red>=.38);
+  assert.equal(conceptBatch('september',['monday']).monday,0);
+});

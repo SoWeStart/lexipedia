@@ -1,5 +1,5 @@
-import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, titleWords, encodeTitle, decodeTitle} from './core.js?v=5';
-import {conceptBatch} from './concepts.js?v=5';
+import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, titleWords, encodeTitle, decodeTitle} from './core.js?v=6';
+import {conceptBatch} from './concepts.js?v=6';
 import {strings} from './language.js';
 import {titleKey} from './pool.js';
 import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js';
@@ -7,7 +7,7 @@ import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from 
 const $=id=>document.getElementById(id);
 const ui={form:$('guessForm'),input:$('guessInput'),submit:$('submitButton'),message:$('message'),history:$('history'),guessCount:$('guessCount'),elapsed:$('elapsed'),titleProgress:$('titleProgress'),maskedTitle:$('maskedTitle'),articleText:$('articleText'),articleBadge:$('articleBadge'),sourceLink:$('sourceLink')};
 const STORE_PREFIX='lexipedia:v1:';
-const SEMANTIC_VERSION=3;
+const SEMANTIC_VERSION=4;
 let round=null,activeRoute='',epoch=0,controller=null,worker=null,serial=0,pending=new Map(),busy=false;
 
 function safeStorageGet(key){try{return localStorage.getItem(key)}catch{return null}}
@@ -96,7 +96,8 @@ function loadSaved(key){try{
   if(!r || typeof r.title!=='string' || typeof r.extract!=='string' || !Array.isArray(r.guesses) || !r.hints)return null;
   if(r.semanticVersion!==SEMANTIC_VERSION){
     r.hints={}; r.semanticVersion=SEMANTIC_VERSION;
-    for(const guess of r.guesses)mergeHints(r,guess,conceptBatch(guess,getUniqueWords(r.extract)));
+    const targets=getUniqueWords(r.extract);
+    for(const guess of r.guesses)mergeHints(r,guess,conceptBatch(guess,targets));
   }
   return r;
 }catch{return null}}
@@ -110,7 +111,7 @@ function prepareSemantic(){
 }
 function ensureWorker(){
   try{
-    worker=new Worker(new URL('./semantic-worker.js?v=5',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./semantic-worker.js?v=6',import.meta.url),{type:'module'});
     worker.onmessage=e=>{
       const d=e.data;
       if(d.epoch!==epoch)return;
@@ -244,7 +245,7 @@ async function startRound({route=null}={}){
   pending.clear();setBusy(true);articleStatus='';showMessage();
   let info=route;
   if(info?.key){activeRoute=info.key;const old=loadSaved(info.key);
-    if(old){round=old;addSeen(old.title);setBusy(false);renderAll();prepareSemantic();return;}
+    if(old){round=old;addSeen(old.title);save();setBusy(false);renderAll();prepareSemantic();return;}
   }
   round=null;articleStatus='loading';renderArticleStatus();
   ui.maskedTitle.textContent='••••••••';

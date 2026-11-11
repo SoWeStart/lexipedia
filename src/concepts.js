@@ -1,3 +1,5 @@
+import {normalizeWord,stemWord} from './core.js?v=6';
+
 /** Offline semantic fallback and ontology augmentation. This is a directed, weighted lexical graph, not a pretrained embedding. */
 const GROUPS = [
  'science:mathematics,physics,chemistry,biology,astronomy,geology,medicine,technology',
@@ -46,6 +48,16 @@ const GROUPS = [
  'economics:money,bank,trade,market,business,finance',
  'architecture:building,house,bridge,temple,castle,tower'
 ];
+const PEER_GROUPS = [
+  ['month','january february march april may june july august september october november december'],
+  ['weekday','monday tuesday wednesday thursday friday saturday sunday'],
+  ['season','spring summer autumn fall winter'],
+  ['direction','north east south west northeast southeast southwest northwest'],
+  ['duration','second minute hour day week month year decade century millennium'],
+  ['color','red orange yellow green blue purple violet pink brown gray grey black white'],
+  ['continent','africa antarctica asia europe oceania'],
+  ['planet','mercury venus earth mars jupiter saturn uranus neptune'],
+];
 const graph = new Map();
 function edge(a,b,weight){
   if(!graph.has(a))graph.set(a,new Map());
@@ -57,10 +69,13 @@ for(const record of GROUPS){
     edge(parent,child,0.8);edge(child,parent,0.76);
   }
 }
-// Numeric word equivalents, approximate connections (exact words are handled separately).
-for(const [name,num] of [['one','1'],['two','2'],['three','3'],['four','4'],['five','5'],['six','6'],['seven','7'],['eight','8'],['nine','9'],['ten','10']]){
-  edge(name,num,0.9);edge(num,name,0.9);
+for(const [category,members] of PEER_GROUPS){
+  for(const member of members.split(' ')){
+    edge(category,member,.8);edge(member,category,.68);
+  }
 }
+edge('day','weekday',.76);edge('weekday','day',.76);
+edge('calendar','month',.78);edge('month','calendar',.72);
 /** Avoid transitive false positives through encyclopedic umbrella categories.
  * For example, mathematics -> science -> biology must not be treated as a
  * close relationship, even though both disciplines share the science parent. */
@@ -86,9 +101,15 @@ function conceptNeighbors(word){
   return seen;
 }
 export function conceptSimilarity(a,b){
-  return conceptNeighbors(String(a).toLowerCase()).get(String(b).toLowerCase())??0;
+  const neighbors=conceptNeighbors(conceptKey(a));
+  return neighbors.get(conceptKey(b))??0;
 }
 export function conceptBatch(guess,targets){
-  const neighbors=conceptNeighbors(String(guess).toLowerCase());
-  return Object.fromEntries(targets.map(target=>[target,neighbors.get(String(target).toLowerCase())??0]));
+  const neighbors=conceptNeighbors(conceptKey(guess));
+  return Object.fromEntries(targets.map(target=>[target,neighbors.get(conceptKey(target))??0]));
+}
+function conceptKey(value){
+  const word=normalizeWord(value);
+  const stem=stemWord(word);
+  return !graph.has(word) && graph.has(stem)?stem:word;
 }
