@@ -8,7 +8,7 @@ css=(ROOT/'styles.css').read_text()
 css=re.sub(r'@import[^;]+;','',css)
 html=html.replace('<link rel="stylesheet" href="./styles.css">','<style>'+css+'</style>')
 html=re.sub(r'<script type="module" src="./src/app.js"></script>','',html)
-modules=['core','concepts','articles','pool','wiki','app']
+modules=['core','concepts','articles','language','pool','wiki','app']
 source='\n'.join((ROOT/f'src/{name}.js').read_text() for name in modules)
 source=re.sub(r'^import .*?;\s*$','',source,flags=re.MULTILINE)
 source=re.sub(r'\bexport (function|const|class|async function)\b',r'\1',source)
@@ -40,6 +40,9 @@ with sync_playwright() as playwright:
   page.set_content(html,wait_until='domcontentloaded')
   page.add_script_tag(content=script)
   page.wait_for_selector('#guessInput:not([disabled])',timeout=12000)
+  page.get_by_role('button',name='English',exact=True).click()
+  assert page.locator('html').get_attribute('lang')=='en'
+  assert page.locator('#guessInput').get_attribute('placeholder')=='English word'
   assert page.locator('.word.hidden').count()>3
   assert page.locator('#maskedTitle .word.hidden').count()==1
   # A tap or keyboard action temporarily overlays the exact letter count.
@@ -64,7 +67,7 @@ with sync_playwright() as playwright:
    page.wait_for_function('(n)=>document.querySelector("#guessCount").textContent===String(n)',arg=i,timeout=12000)
   assert page.locator('#maskedTitle .word.exact').count()==1
   assert page.locator('#winDialog').evaluate('(el)=>el.open')
-  assert page.locator('#articleBadge').inner_text()=='GELÖST'
+  assert page.locator('#articleBadge').inner_text()=='SOLVED'
   assert page.locator('#sourceLink').is_visible()
   page.screenshot(path=f'/mnt/data/lexipedia-{name}-win.png',full_page=True)
   print(name,'OK, 5 guesses, win dialog, errors:',errors)

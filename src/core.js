@@ -5,6 +5,7 @@ const IRREGULAR = Object.freeze({
   went:'go', gone:'go', made:'make', ate:'eat', eaten:'eat', is:'be', are:'be', was:'be', were:'be', been:'be',
   has:'have', had:'have', does:'do', did:'do', ran:'run', swam:'swim', swum:'swim', written:'write', wrote:'write',
   leaves:'leaf', wolves:'wolf', lives:'life', knives:'knife', crises:'crisis', fungi:'fungus', nuclei:'nucleus',
+  news:'news', series:'series', means:'means', proceedings:'proceedings', politics:'politics', economics:'economics', physics:'physics',
   algae:'alga', mosquitoes:'mosquito', volcanoes:'volcano', heroes:'hero'
 });
 
@@ -16,7 +17,7 @@ export function normalizeWord(value) {
 export function stemWord(value) {
   const w=normalizeWord(value);
   if (!w) return '';
-  if (IRREGULAR[w]) return IRREGULAR[w];
+  if (Object.hasOwn(IRREGULAR,w)) return IRREGULAR[w];
   if (/^\d+$/.test(w)) return w;
   if (w.length < 4) return w;
   if (w.endsWith('ies') && w.length > 4) return w.slice(0,-3)+'y';

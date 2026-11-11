@@ -1,13 +1,14 @@
 import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, titleWords, encodeTitle, decodeTitle} from './core.js';
 import {conceptBatch} from './concepts.js';
+import {strings} from './language.js';
 import {titleKey} from './pool.js';
 import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js';
 
 const $=id=>document.getElementById(id);
-const ui={form:$('guessForm'),input:$('guessInput'),submit:$('submitButton'),message:$('message'),history:$('history'),historyCount:$('historyCount'),guessCount:$('guessCount'),elapsed:$('elapsed'),titleProgress:$('titleProgress'),progressBar:$('progressBar'),maskedTitle:$('maskedTitle'),articleText:$('articleText'),articleBadge:$('articleBadge'),sourceLink:$('sourceLink'),mode:$('modeStatus')};
+const ui={form:$('guessForm'),input:$('guessInput'),submit:$('submitButton'),message:$('message'),history:$('history'),guessCount:$('guessCount'),elapsed:$('elapsed'),titleProgress:$('titleProgress'),maskedTitle:$('maskedTitle'),articleText:$('articleText'),articleBadge:$('articleBadge'),sourceLink:$('sourceLink')};
 const STORE_PREFIX='lexipedia:v1:';
-const SEMANTIC_VERSION=2;
-let round=null,activeRoute='',epoch=0,controller=null,worker=null,serial=0,pending=new Map(),busy=false,modelMode='basic',showFullArticle=false;
+const SEMANTIC_VERSION=3;
+let round=null,activeRoute='',epoch=0,controller=null,worker=null,serial=0,pending=new Map(),busy=false;
 
 function safeStorageGet(key){try{return localStorage.getItem(key)}catch{return null}}
 function safeStorageSet(key,val){try{localStorage.setItem(key,val)}catch{/*Storage optional*/}}
@@ -47,11 +48,45 @@ function addSeen(title){
   seen=[title,...roundHistory().filter(value=>titleKey(value)!==key)];
   safeStorageSet('lexipedia:seen',JSON.stringify(seen));
 }
-function showMessage(text,kind=''){ui.message.textContent=text;ui.message.className='message'+(kind?' '+kind:'');}
-function setMode(text,mode='basic'){
-  modelMode=mode;
-  ui.mode.textContent=text;
-  document.querySelector('.status-led').style.background=mode==='model'?'#9ce7b0':'#ffbf78';
+let language=safeStorageGet('lexipedia:language')==='en'?'en':'de';
+let message={key:'',kind:'',args:[]};
+let articleStatus='';
+function tr(key,...args){
+  const value=strings[language][key];
+  return typeof value==='function'?value(...args):value;
+}
+function renderMessage(){
+  ui.message.textContent=message.key?tr(message.key,...message.args):'';
+  ui.message.className='message'+(message.kind?' '+message.kind:'');
+  ui.message.hidden=!message.key;
+}
+function showMessage(key='',kind='',...args){
+  message={key,kind,args};
+  renderMessage();
+}
+function renderArticleStatus(){
+  if(!articleStatus)return;
+  const status=document.createElement('div');
+  status.className=articleStatus==='loading'?'article-loading':'article-error';
+  status.lang=language;
+  status.textContent=tr(articleStatus);
+  ui.articleText.replaceChildren(status);
+}
+function setLanguage(value){
+  language=value;
+  safeStorageSet('lexipedia:language',value);
+  document.documentElement.lang=value;
+  for(const node of document.querySelectorAll('[data-text]'))node.textContent=tr(node.dataset.text);
+  for(const node of document.querySelectorAll('[data-label]'))node.setAttribute('aria-label',tr(node.dataset.label));
+  for(const node of document.querySelectorAll('[data-placeholder]'))node.placeholder=tr(node.dataset.placeholder);
+  for(const button of document.querySelectorAll('[data-language]')){
+    button.setAttribute('aria-pressed',String(button.dataset.language===value));
+  }
+  if(round){
+    renderAll();
+    if(round.finishedAt)renderWin();
+  }else renderArticleStatus();
+  renderMessage();
 }
 function showToast(message){const item=document.createElement('div');item.className='toast';item.textContent=message;document.body.append(item);setTimeout(()=>item.remove(),2500);}
 function save(){if(round&&activeRoute)safeStorageSet(STORE_PREFIX+activeRoute,JSON.stringify(round));}
@@ -72,7 +107,6 @@ function prepareSemantic(){
   const current=epoch;
   round.semanticVersion=SEMANTIC_VERSION;
   if(worker){worker.postMessage({type:'init',epoch:current,text:round.extract});}
-  else setMode('Grundmodus aktiv (Sprachmodell nicht verfügbar)','basic');
 }
 function ensureWorker(){
   try{
@@ -80,12 +114,10 @@ function ensureWorker(){
     worker.onmessage=e=>{
       const d=e.data;
       if(d.epoch!==epoch)return;
-      if(d.type==='status'){setMode(d.message,modelMode);return;}
       if(d.type==='ready'){
         if(d.mode==='model'){
-          setMode(d.detail,'model');
           for(const word of (round?.guesses||[])) requestScore(word,true);
-        }else if(modelMode!=='model')setMode(d.detail,'basic');
+        }
         return;
       }
       if(d.type==='score'){
@@ -95,11 +127,11 @@ function ensureWorker(){
         else finishGuess(d.guess,d.scores);
       }
     };
-    worker.onerror=()=>{worker?.terminate();worker=null;setMode('Grundmodus aktiv (Sprachmodell konnte nicht geladen werden)','basic');
+    worker.onerror=()=>{worker?.terminate();worker=null;
       for(const request of pending.values())if(!request.replay)finishGuess(request.word,conceptBatch(request.word,getWords()));
       pending.clear();
     };
-  }catch{worker=null;setMode('Grundmodus aktiv','basic');}
+  }catch{worker=null;}
 }
 function getWords(){return getUniqueWords(round?.extract||'');}
 function requestScore(word,replay=false){
@@ -113,7 +145,8 @@ function enableLengthPeek(span,token){
   span.dataset.length=String(length);
   span.tabIndex=0;
   span.setAttribute('role','button');
-  span.setAttribute('aria-label',`Verdecktes Wort mit ${length} Buchstaben. Wortlänge anzeigen.`);
+  span.setAttribute('aria-label',tr('length',length));
+  span.lang=language;
   let timer;
   const peek=()=>{
     clearTimeout(timer);
@@ -137,20 +170,20 @@ function createArticleWord(token,inTitle=false){
   else if(state.type==='near'){
     span.textContent=state.label;
     span.classList.add(state.score>=.65?'high':state.score>=.49?'med':'low');
-    span.title=`Semantischer Hinweis: ${state.label}, Ähnlichkeit ${Math.round(state.score*100)} / 100`;
+    span.title=tr('hint',state.label);
     enableLengthPeek(span,token);
-  }
-  if(showFullArticle && round.finishedAt && !inTitle){
-    span.className='word revealed';span.textContent=token;span.style.width='';span.title='';span.removeAttribute('role');span.removeAttribute('tabindex');
   }
   return span;
 }
 function renderArticle(){
   if(!round)return;
+  $('shareButton').disabled=activeRoute==='practice';
   const title=document.createDocumentFragment();
   for(const part of tokenize(round.title))title.append(createArticleWord(part,true));
   ui.maskedTitle.replaceChildren(title);
-  ui.maskedTitle.setAttribute('aria-label',getTitleProgress(round).complete?round.title:'Verdeckter Wikipedia-Titel');
+  const solved=getTitleProgress(round).complete;
+  ui.maskedTitle.lang=solved?'en':language;
+  ui.maskedTitle.setAttribute('aria-label',solved?round.title:tr('hiddenTitle'));
   const container=document.createDocumentFragment();
   for(const paragraph of round.extract.split(/\n\s*\n|\n/)){
     if(!paragraph.trim())continue;
@@ -161,21 +194,19 @@ function renderArticle(){
   ui.articleText.replaceChildren(container);
   ui.sourceLink.href=round.source||'https://en.wikipedia.org/';
   ui.sourceLink.hidden=!round.finishedAt||!round.source;
-  ui.articleBadge.textContent=round.finishedAt?'GELÖST':'GEHEIM';ui.articleBadge.classList.toggle('done',!!round.finishedAt);
+  ui.articleBadge.textContent=round.finishedAt?tr('solved'):'';ui.articleBadge.hidden=!round.finishedAt;ui.articleBadge.classList.toggle('done',!!round.finishedAt);
 }
 function exactHits(guess){return tokenize(round.extract).filter(x=>isWord(x)&&sameWord(x,guess)).length;}
 function semanticHits(guess){return Object.values(round.hints).filter(x=>x.guess===guess).length;}
 function renderHistory(){
   if(!round)return;
-  $('historyCount').textContent=`${round.guesses.length} Wörter`;
-  if(!round.guesses.length){ui.history.innerHTML='<div class="empty-state"><span>⌁</span><p>Noch keine Wörter geraten.<br>Deine Suche beginnt hier.</p></div>';return;}
   const fragment=document.createDocumentFragment();
   for(let i=round.guesses.length-1;i>=0;i--){
     const guess=round.guesses[i],ex=exactHits(guess),ne=semanticHits(guess);
     const row=document.createElement('div');row.className='history-item '+(ex?'found':ne?'related':'');
     const n=document.createElement('span');n.className='history-number';n.textContent=`${i+1}.`;
     const word=document.createElement('span');word.className='history-word';word.textContent=guess;
-    const count=document.createElement('span');count.className='history-meta';count.textContent=ex?`${ex} exakt`:ne?`${ne} Hinweise`:'kein Treffer';
+    const count=document.createElement('span');count.className='history-meta';count.textContent=[ex?tr('exactCount',ex):'',ne?tr('hintCount',ne):''].filter(Boolean).join(' · ')||tr('noHit');
     row.append(n,word,count);fragment.append(row);
   }
   ui.history.replaceChildren(fragment);
@@ -185,7 +216,6 @@ function renderStats(){
   ui.guessCount.textContent=round.guesses.length;
   const p=getTitleProgress(round);
   ui.titleProgress.textContent=`${p.found} / ${p.total}`;
-  ui.progressBar.style.width=`${Math.round(p.found/p.total*100)}%`;
   const diff=(round.finishedAt||Date.now())-round.startedAt;
   ui.elapsed.textContent=formatElapsed(diff);
 }
@@ -194,31 +224,35 @@ function finishGuess(word,scores){
   if(!round)return;
   const result=applyGuess(round,word,scores);
   setBusy(false);
-  if(!result.accepted){showMessage(result.reason,'error');return;}
+  if(!result.accepted){showMessage('oneWord','error');return;}
   save();renderAll();
-  const ex=exactHits(word),ne=semanticHits(word);
-  if(result.won){
-    showMessage(`Richtig! Der gesuchte Artikel heißt „${round.title}“.`,'success');showWin();
-  }else if(ex)showMessage(`${ex} exakte Treffer aufgedeckt!${ne?` Zusätzlich ${ne} semantische Hinweise.`:''}`,'success');
-  else if(ne)showMessage(`${ne} verwandte Wörter im Artikel gefunden. Du kommst näher!`);
-  else showMessage('Keine engen Treffer. Versuche einen anderen Themenbereich.');
+  showMessage('guessFeedback','',exactHits(word),semanticHits(word));
+  if(result.won)showWin();
   ui.input.value='';ui.input.focus({preventScroll:true});
 }
-function showWin(){
+function renderWin(){
   $('winTitle').textContent=round.title;
-  $('winStats').textContent=`Du hast den Artikel mit ${round.guesses.length} Versuchen in ${formatElapsed(round.finishedAt-round.startedAt)} gefunden.`;
+  $('winStats').textContent=tr('result',round.guesses.length,formatElapsed(round.finishedAt-round.startedAt));
+}
+function showWin(){
+  renderWin();
   if(!$('winDialog').open)$('winDialog').showModal();
 }
 async function startRound({route=null}={}){
   epoch++;const captured=epoch;
   if(controller)controller.abort();controller=new AbortController();
-  pending.clear();setBusy(true);showFullArticle=false;
+  pending.clear();setBusy(true);articleStatus='';showMessage();
   let info=route;
   if(info?.key){activeRoute=info.key;const old=loadSaved(info.key);
-    if(old){round=old;addSeen(old.title);setBusy(false);renderAll();prepareSemantic();showMessage(old.finishedAt?'Diese Runde ist bereits gelöst. Starte ein neues Rätsel.':'Dein bisheriger Spielstand wurde wiederhergestellt.');return;}
+    if(old){round=old;addSeen(old.title);setBusy(false);renderAll();prepareSemantic();return;}
   }
-  round=null;ui.articleText.innerHTML='<div class="article-loading"><div class="loading-spinner"></div> Lade Wikipedia-Artikel …</div>';
-  ui.maskedTitle.textContent='••••••••';showMessage('Suche einen geeigneten Wikipedia-Artikel …');
+  round=null;articleStatus='loading';renderArticleStatus();
+  ui.maskedTitle.textContent='••••••••';
+  ui.maskedTitle.lang=language;
+  ui.maskedTitle.setAttribute('aria-label',tr('hiddenTitle'));
+  ui.articleBadge.hidden=true;ui.sourceLink.hidden=true;ui.history.replaceChildren();
+  ui.guessCount.textContent='0';ui.elapsed.textContent='00:00';ui.titleProgress.textContent='–';
+  $('shareButton').disabled=true;
   try{
     let article;
     if(!info)article=await fetchCuratedArticle(roundHistory(),controller.signal);
@@ -232,40 +266,42 @@ async function startRound({route=null}={}){
     round.semanticVersion=SEMANTIC_VERSION;
     addSeen(article.title);
     save();setBusy(false);renderAll();prepareSemantic();
-    showMessage('Rätsel bereit. Rate zunächst ein grobes Themengebiet.');
     ui.input.focus({preventScroll:true});
   }catch(error){
     if(captured!==epoch || controller.signal.aborted)return;
     if(info?.kind==='title'){
-      round=null;ui.articleText.innerHTML='<div class="article-error">Der geteilte Artikel konnte nicht geladen werden. Prüfe die Internetverbindung und wähle „Neues Rätsel“.</div>';setBusy(false);showMessage('Wikipedia ist nicht erreichbar. Bitte erneut versuchen.','error');return;
+      articleStatus='loadError';renderArticleStatus();setBusy(false);return;
     }
     const article=practiceArticle();
     activeRoute='practice';round=createRound(article);round.semanticVersion=SEMANTIC_VERSION;setBusy(false);renderAll();prepareSemantic();
-    showMessage('Wikipedia ist gerade nicht erreichbar. Stattdessen läuft ein selbst verfasstes Übungsrätsel.','error');
+    showMessage('practice','error');
   }
 }
 async function shareText(text){
   try{
     if(navigator.share){await navigator.share({text});return;}
-    if(navigator.clipboard){await navigator.clipboard.writeText(text);showToast('Link kopiert!');return;}
-    window.prompt('Link kopieren:',text);
-  }catch(e){if(e?.name!=='AbortError')window.prompt('Link kopieren:',text);}
+    if(navigator.clipboard){await navigator.clipboard.writeText(text);showToast(tr('copied'));return;}
+    window.prompt(tr('copy'),text);
+  }catch(e){if(e?.name!=='AbortError')window.prompt(tr('copy'),text);}
 }
 function challengeUrl(){return activeRoute==='practice'?location.origin+location.pathname:location.href;}
-function shareChallenge(){return shareText(`🎯 Lexipedia: Kannst du denselben Wikipedia-Artikel erraten?\n${challengeUrl()}`);}
-function shareResult(){return shareText(`✳ Lexipedia: Ich habe einen Wikipedia-Artikel in ${round.guesses.length} Versuchen und ${formatElapsed(round.finishedAt-round.startedAt)} gelöst. Schaffst du es schneller?\n${challengeUrl()}`);}
+function shareChallenge(){if(round) return shareText(tr('challenge')+'\n'+challengeUrl());}
+function shareResult(){return shareText(tr('result',round.guesses.length,formatElapsed(round.finishedAt-round.startedAt))+'\n'+challengeUrl());}
 function closeDialog(id){const dlg=$(id);if(dlg.open)dlg.close();}
 function setupEvents(){
   ui.form.addEventListener('submit',e=>{
     e.preventDefault();if(!round||busy||round.finishedAt)return;
     const value=normalizeWord(ui.input.value);
-    if(!value){showMessage('Bitte gib ein englisches Wort ein.','error');return;}
-    if(round.guesses.includes(value)){showMessage('Dieses Wort hast du bereits geraten.','error');return;}
-    if(!/^[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*$/u.test(value)){showMessage('Bitte nur ein einzelnes Wort eingeben.','error');return;}
+    if(!value){showMessage('word','error');return;}
+    if(round.guesses.includes(value)){showMessage('duplicate','error');return;}
+    if(!/^[\p{L}\p{N}]+(?:[’'-][\p{L}\p{N}]+)*$/u.test(value)){showMessage('oneWord','error');return;}
     setBusy(true);requestScore(value);
   });
   $('newButton').addEventListener('click',()=>startRound());
   $('shareButton').addEventListener('click',shareChallenge);
+  for(const button of document.querySelectorAll('[data-language]')){
+    button.addEventListener('click',()=>setLanguage(button.dataset.language));
+  }
   $('helpButton').addEventListener('click',()=>$('helpDialog').showModal());
   $('nextWinButton').addEventListener('click',()=>{closeDialog('winDialog');startRound();});
   $('shareWinButton').addEventListener('click',shareResult);
@@ -275,11 +311,15 @@ function setupEvents(){
   setInterval(renderStats,1000);
   if(window.matchMedia('(max-width:760px)').matches){
     // The history remains available via its own reveal button after the article on small screens.
-    const button=document.createElement('button');button.type='button';button.className='btn btn-outline mobile-history-toggle';button.textContent='Versuche anzeigen / verbergen';
+    const button=document.createElement('button');button.type='button';button.className='btn btn-outline mobile-history-toggle';button.dataset.text='guesses';
     button.style.cssText='width:100%;margin-top:12px';
     document.querySelector('.history-panel').before(button);
-    button.addEventListener('click',()=>document.querySelector('.history-panel').classList.toggle('mobile-show'));
+    button.setAttribute('aria-expanded','false');
+    button.addEventListener('click',()=>{
+      const open=document.querySelector('.history-panel').classList.toggle('mobile-show');
+      button.setAttribute('aria-expanded',String(open));
+    });
   }
 }
-ensureWorker();setupEvents();const initial=routeInfo();void startRound({route:initial});
+ensureWorker();setupEvents();setLanguage(language);const initial=routeInfo();void startRound({route:initial});
 if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));

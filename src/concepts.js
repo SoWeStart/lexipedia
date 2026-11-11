@@ -66,18 +66,16 @@ for(const [name,num] of [['one','1'],['two','2'],['three','3'],['four','4'],['fi
  * close relationship, even though both disciplines share the science parent. */
 const BROAD_HUBS = new Set('science nature biology geography mathematics physics chemistry music religion sport art medicine technology environment history'.split(' '));
 /** Short, weighted lexical paths only: no unrestricted graph diffusion. */
-export function conceptSimilarity(a,b){
-  a=String(a).toLowerCase();b=String(b).toLowerCase();
-  if(a===b)return 1;
-  if(!graph.has(a))return 0;
-  let frontier=new Map([[a,1]]), best=0,seen=new Map([[a,1]]);
+function conceptNeighbors(word){
+  const seen=new Map([[word,1]]);
+  if(!graph.has(word))return seen;
+  let frontier=new Map(seen);
   for(let depth=0;depth<2;depth++){
     const next=new Map();
     for(const [node,weight] of frontier){
       if(depth>0 && BROAD_HUBS.has(node))continue;
       for(const [neighbor,edgeWeight] of graph.get(node)||[]){
         const newWeight=weight*edgeWeight;
-        if(neighbor===b) best=Math.max(best,newWeight);
         if(newWeight>(seen.get(neighbor)||0) && newWeight>0.2){
           seen.set(neighbor,newWeight);next.set(neighbor,newWeight);
         }
@@ -85,8 +83,12 @@ export function conceptSimilarity(a,b){
     }
     frontier=next;
   }
-  return best;
+  return seen;
+}
+export function conceptSimilarity(a,b){
+  return conceptNeighbors(String(a).toLowerCase()).get(String(b).toLowerCase())??0;
 }
 export function conceptBatch(guess,targets){
-  return Object.fromEntries(targets.map(target=>[target,conceptSimilarity(guess,target)]));
+  const neighbors=conceptNeighbors(String(guess).toLowerCase());
+  return Object.fromEntries(targets.map(target=>[target,neighbors.get(String(target).toLowerCase())??0]));
 }

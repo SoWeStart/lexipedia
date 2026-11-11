@@ -17,6 +17,10 @@ test('normalization, case, and Unicode boundaries',()=>{
   assert.equal(sameWord('animal','insect'),false);
   assert.equal(sameWord('biology','geology'),false);
   assert.equal(sameWord('the','them'),false);
+  assert.equal(stemWord('constructor'),'constructor');
+  assert.equal(sameWord('news','new'),false);
+  assert.equal(sameWord('series','sery'),false);
+  assert.equal(sameWord('physics','physic'),false);
 });
 
 test('tokenizer preserves article punctuation and spaces',()=>{

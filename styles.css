@@ -17,3 +17,13 @@
 @media(max-width:380px){.intro h1{font-size:33px}.brand{font-size:24px}.input-group input{font-size:13px}.input-group .btn{font-size:10px}.article-text{font-size:15px}}
 @media(min-width:761px){.history-panel{display:block!important}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+.language-switch{display:flex;border:1px solid var(--border)}
+.language-switch button{min-width:38px;min-height:36px;padding:0 7px;border:0;background:transparent;color:var(--ink);font:600 11px 'IBM Plex Mono',monospace}
+.language-switch button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.language-switch button:focus-visible{outline:2px solid var(--accent);outline-offset:2px;z-index:1}
+.toolbar-left .btn:last-child{grid-column:auto}
+.article-topline:has([hidden]),.article-bottom:has([hidden]){display:none}
+.message[hidden]{display:none}
+.message{min-height:0}
+.history-panel:has(.history-content:empty),.mobile-history-toggle:has(+ .history-panel .history-content:empty){display:none}
+.dialog-inner ul{padding-inline-start:1.25em;line-height:1.6}

@@ -4,85 +4,88 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#eeeae0">
-  <meta name="description" content="Errate beliebig viele Wikipedia-Artikel mithilfe semantischer Worthinweise. Kostenlos, direkt im Browser.">
+  <meta name="description" content="Lexipedia">
   <meta name="color-scheme" content="light">
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
-  <title>Lexipedia – Finde den Wikipedia-Artikel</title>
+  <title>Lexipedia</title>
 </head>
 <body>
   <div class="app-shell">
     <header class="app-header">
-      <a class="brand" href="./" aria-label="Lexipedia Startseite">
+      <a class="brand" href="./" aria-label="Lexipedia">
         <span class="logo" aria-hidden="true">✳</span>
-        <span>lexi<span class="brand-accent">pedia</span><span class="beta">BETA</span></span>
+        <span>lexi<span class="brand-accent">pedia</span></span>
       </a>
       <div class="header-actions">
-        <span class="free-tag"><span class="pulse-dot"></span> GRATIS & UNBEGRENZT</span>
-        <button id="helpButton" class="icon-btn" aria-label="Spielanleitung öffnen" title="Anleitung">?</button>
+        <div class="language-switch" role="group" data-label="language" aria-label="Sprache">
+          <button type="button" lang="de" data-language="de" aria-pressed="true" aria-label="Deutsch">DE</button>
+          <button type="button" lang="en" data-language="en" aria-pressed="false" aria-label="English">EN</button>
+        </div>
+        <button id="helpButton" class="icon-btn" data-label="help" aria-label="Anleitung">?</button>
       </div>
     </header>
 
     <main class="main-content">
-      <section class="intro">
-        <div class="eyebrow"><span class="eyebrow-line"></span> DAS SEMANTISCHE WIKIPEDIA-RÄTSEL</div>
-        <h1>Finde den <em>versteckten</em> Artikel.</h1>
-        <p>Rate Wörter, entdecke Bedeutungszusammenhänge und arbeite dich Schritt für Schritt zum geheimen Wikipedia-Titel vor.</p>
-      </section>
-
-      <section class="toolbar" aria-label="Spielsteuerung">
+      <section class="toolbar" data-label="controls" aria-label="Spielsteuerung">
         <div class="toolbar-left">
-          <button id="newButton" class="btn btn-primary"><span aria-hidden="true">↻</span> Neues Rätsel</button>
-          <button id="shareButton" class="btn btn-outline"><span aria-hidden="true">↗</span> Freund einladen</button>
+          <button id="newButton" class="btn btn-primary"><span aria-hidden="true">↻</span> <span data-text="newRound">Neues Rätsel</span></button>
+          <button id="shareButton" class="btn btn-outline"><span aria-hidden="true">↗</span> <span data-text="share">Teilen</span></button>
         </div>
-        <div class="toolbar-right"><span class="status-led"></span><span id="modeStatus">Spiel wird vorbereitet …</span></div>
       </section>
 
-      <section class="dashboard" aria-label="Spielstatistik">
-        <div class="metric"><span>VERSUCHE</span><strong id="guessCount">0</strong></div>
-        <div class="metric"><span>SPIELZEIT</span><strong id="elapsed">00:00</strong></div>
-        <div class="metric"><span>TITEL GELÖST</span><strong id="titleProgress">0 / 1</strong></div>
-        <div class="metric metric-progress"><span>FORTSCHRITT</span><div class="meter"><div id="progressBar"></div></div></div>
+      <section class="dashboard" data-label="stats" aria-label="Spielstatistik">
+        <div class="metric"><span data-text="guesses">VERSUCHE</span><strong id="guessCount">0</strong></div>
+        <div class="metric"><span data-text="time">SPIELZEIT</span><strong id="elapsed">00:00</strong></div>
+        <div class="metric"><span data-text="title">TITEL GELÖST</span><strong id="titleProgress">0 / 1</strong></div>
       </section>
 
       <div class="game-layout">
         <section class="left-column">
           <div class="panel guess-panel">
-            <div class="panel-heading"><span class="panel-bullet"></span><h2>Dein nächstes Wort</h2></div>
             <form id="guessForm" autocomplete="off">
-              <label class="sr-only" for="guessInput">Englisches Wort eingeben</label>
+              <label class="sr-only" for="guessInput" data-text="word">Englisches Wort</label>
               <div class="input-group">
-                <input id="guessInput" type="text" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" maxlength="42" placeholder="Dein Wort …" enterkeyhint="go">
-                <button id="submitButton" class="btn btn-primary" type="submit">Raten <span aria-hidden="true">↗</span></button>
+                <input id="guessInput" type="text" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" maxlength="42" data-placeholder="word" placeholder="Englisches Wort" enterkeyhint="go">
+                <button id="submitButton" class="btn btn-primary" type="submit" data-text="guess">Raten</button>
               </div>
             </form>
-            <div id="message" class="message" role="status" aria-live="polite">Tippe ein Wort ein, um Bedeutungsbeziehungen aufzudecken.</div>
+            <div id="message" class="message" role="status" aria-live="polite" hidden></div>
           </div>
           <div class="panel history-panel">
-            <div class="panel-heading history-heading"><div class="heading-left"><span class="panel-bullet muted"></span><h2>Deine Versuche</h2></div><span id="historyCount" class="small-count">0 Wörter</span></div>
-            <div id="history" class="history-content"><div class="empty-state"><span>⌁</span><p>Noch keine Wörter geraten.<br>Deine Suche beginnt hier.</p></div></div>
+            <div class="panel-heading history-heading"><div class="heading-left"><span class="panel-bullet muted"></span><h2 data-text="guesses">Versuche</h2></div></div>
+            <div id="history" class="history-content"></div>
           </div>
-          <div class="legend"><span><i class="legend-swatch exact"></i> Exakt</span><span><i class="legend-swatch near"></i> Semantisch nah</span><span><i class="legend-swatch hidden"></i> Unbekannt</span></div>
         </section>
 
         <section class="right-column">
           <div class="panel article-panel">
-            <div class="article-topline"><div class="article-type"><span class="globe">◎</span> WIKIPEDIA · ENGLISH</div><span id="articleBadge" class="article-badge">GEHEIM</span></div>
-            <h2 id="maskedTitle" class="masked-title" aria-label="Verdeckter Wikipedia-Titel">▰▰▰▰▰▰▰</h2>
+            <div class="article-topline"><span id="articleBadge" class="article-badge" hidden></span></div>
+            <h2 id="maskedTitle" lang="en" class="masked-title" data-label="hiddenTitle" aria-label="Verdeckter Wikipedia-Titel">▰▰▰▰▰▰▰</h2>
             <div class="article-rule"></div>
-            <div id="articleText" class="article-text"><div class="article-loading"><div class="loading-spinner"></div> Lade einen Wikipedia-Artikel …</div></div>
-            <div class="article-bottom"><span><span aria-hidden="true">◉</span> Tippe auf einen verdeckten Balken: Die Buchstabenanzahl erscheint kurz.</span><a id="sourceLink" href="https://en.wikipedia.org/" target="_blank" rel="noopener noreferrer" hidden>Wikipedia-Quelle ↗</a></div>
+            <div id="articleText" class="article-text" lang="en"></div>
+            <div class="article-bottom"><a id="sourceLink" data-text="source" href="https://en.wikipedia.org/" target="_blank" rel="noopener noreferrer" hidden>Wikipedia-Quelle ↗</a></div>
           </div>
         </section>
       </div>
-      <footer class="footer">Unabhängiges Lern- und Freizeitprojekt · Nicht mit Pedantle oder Wikimedia verbunden. Wikipedia-Texte: <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a> · <a href="https://en.wikipedia.org/wiki/Wikipedia:Text_of_the_Creative_Commons_Attribution-ShareAlike_4.0_International_License" target="_blank" rel="noopener noreferrer">Lizenzhinweise</a> · Semantisches Modell: <a href="https://huggingface.co/Xenova/all-MiniLM-L6-v2" target="_blank" rel="noopener noreferrer">MiniLM (Apache 2.0)</a></footer>
+      <footer class="footer"><a href="https://creativecommons.org/licenses/by-sa/4.0/">Wikipedia · CC BY-SA 4.0</a> · <a href="https://huggingface.co/Xenova/all-MiniLM-L6-v2">MiniLM · Apache 2.0</a></footer>
     </main>
   </div>
 
-  <dialog id="helpDialog" class="dialog"><div class="dialog-inner"><button class="dialog-x" data-close="helpDialog" aria-label="Schließen">×</button><span class="dialog-eyebrow">SPIELANLEITUNG</span><h2>So funktioniert Lexipedia</h2><ol><li>Ein englischer Wikipedia-Artikel ist verdeckt. Satzzeichen und die Größe der Wortbalken bleiben sichtbar. Tippe auf einen verdeckten Balken, um kurz die genaue Buchstabenanzahl zu sehen.</li><li>Gib ein einzelnes englisches Wort ein. Exakte Wörter werden <strong class="green-text">grün</strong> aufgedeckt, grammatische Varianten zählen ebenfalls.</li><li>Semantisch ähnliche Wörter erscheinen als <strong class="orange-text">farbige Vermutungen</strong>. Je näher, desto deutlicher die Farbe. Ältere Hinweise verblassen, sobald du ein besseres Wort findest.</li><li>Finde alle Wörter im verdeckten Titel, um zu gewinnen. Titelwörter haben keine semantischen Hinweise.</li><li>Mit „Neues Rätsel“ kannst du beliebig oft weiterspielen. Der Link „Freund einladen“ startet für Freunde denselben Artikel, aber mit eigenem Spielstand.</li></ol><p class="help-note">Ein lokales Sprachmodell ergänzt geprüfte Begriffsbeziehungen. Grammatik- und Funktionswörter erhalten keine irreführenden semantischen Treffer. Keine Konten, keine bezahlte KI-Schnittstelle.</p><button class="btn btn-primary modal-button" data-close="helpDialog">Verstanden</button></div></dialog>
+  <dialog id="helpDialog" class="dialog" aria-labelledby="helpTitle">
+    <div class="dialog-inner">
+      <button class="dialog-x" data-close="helpDialog" data-label="close" aria-label="Schließen">×</button>
+      <h2 id="helpTitle" data-text="help">Anleitung</h2>
+      <ul>
+        <li data-text="helpGoal">Errate den Titel mit englischen Wörtern.</li>
+        <li data-text="helpHints">Grün steht für exakte Treffer, farbige Wörter auf dunklem Grund für Hinweise.</li>
+        <li data-text="helpLength">Tippe auf ein verdecktes Wort, um seine Länge zu sehen.</li>
+      </ul>
+    </div>
+  </dialog>
 
-  <dialog id="winDialog" class="dialog win-dialog"><div class="dialog-inner"><span class="win-icon">✳</span><span class="dialog-eyebrow">ARTIKEL ENTDECKT</span><h2 id="winTitle">Geschafft!</h2><p id="winStats"></p><div class="win-actions"><button id="nextWinButton" class="btn btn-primary">Nächstes Rätsel ↗</button><button id="shareWinButton" class="btn btn-secondary">Ergebnis teilen</button></div><button class="text-button" data-close="winDialog">Artikel ansehen</button></div></dialog>
+  <dialog id="winDialog" class="dialog win-dialog"><div class="dialog-inner"><h2 id="winTitle" lang="en"></h2><p id="winStats"></p><div class="win-actions"><button id="nextWinButton" class="btn btn-primary" data-text="newRound">Neues Rätsel</button><button id="shareWinButton" class="btn btn-secondary" data-text="shareResult">Ergebnis teilen</button></div><button class="text-button" data-close="winDialog" data-text="viewArticle">Artikel ansehen</button></div></dialog>
 
   <script type="module" src="./src/app.js"></script>
 </body>
