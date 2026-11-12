@@ -2,7 +2,7 @@
 const IRREGULAR = Object.freeze({
   people:'person', men:'man', women:'woman', children:'child', mice:'mouse', geese:'goose', teeth:'tooth', feet:'foot',
   flies:'fly', flew:'fly', flown:'fly', babies:'baby', species:'species', fish:'fish', deer:'deer', sheep:'sheep',
-  went:'go', gone:'go', made:'make', ate:'eat', eaten:'eat', is:'be', are:'be', was:'be', were:'be', been:'be',
+  went:'go', gone:'go', made:'make', ate:'eat', eaten:'eat', am:'be', is:'be', are:'be', was:'be', were:'be', been:'be', being:'be',
   has:'have', had:'have', does:'do', did:'do', ran:'run', swam:'swim', swum:'swim', written:'write', wrote:'write',
   leaves:'leaf', wolves:'wolf', lives:'life', knives:'knife', crises:'crisis', fungi:'fungus', nuclei:'nucleus',
   news:'news', series:'series', means:'means', proceedings:'proceedings', politics:'politics', economics:'economics', physics:'physics',
@@ -48,7 +48,7 @@ const FUNCTION_WORDS = new Set(`
  about above below beside besides beyond within via per vs etc also just even still already now very quite rather too enough
  i'm you're it's we're they're isn't aren't wasn't weren't don't doesn't didn't hasn't haven't hadn't can't won't couldn't shouldn't wouldn't
 `.trim().split(/\s+/));
-const GERMAN_FUNCTION_WORDS=new Set(`der die das des dem den ein eine einer eines einem einen und oder aber doch denn sowie als wenn dass weil ob wie was wer wen wem wessen welcher welche welches ich du er sie es wir ihr mich dich sich uns euch mir dir ihm ihnen mein dein sein unser euer ist sind bist bin war waren wurde wurden wird werden gewesen haben hat hatte hatten kann können konnte muss müssen soll sollte darf dürfen mag möchte nicht kein keine auch nur sehr noch schon mehr man mit von vom aus bei auf über unter nach vor zur zum bis durch für gegen ohne seit zwischen über um an am im in zu so hin her dort hier dann dabei dazu damit darin davon diese dieser dieses jene jedem alle jeder einige etwas solche ersten erste zweiter zweite`.split(' '));
+const GERMAN_FUNCTION_WORDS=new Set(`der die das des dem den ein eine einer eines einem einen und oder aber doch denn sowie als wenn dass weil ob wie was wer wen wem wessen welcher welche welches ich du er sie es wir ihr mich dich sich uns euch mir dir ihm ihnen mein dein sein unser euer ist sind bist bin war waren wurde wurden wird werden gewesen haben hat hatte hatten kann können konnte muss müssen soll sollte darf dürfen mag möchte nicht kein keine auch nur sehr noch schon mehr man mit von vom aus bei auf über unter nach vor zur zum bis durch für gegen ohne seit zwischen über um an am im in zu so hin her dort hier dann dabei dazu damit darin davon diese dieser dieses jene jedem alle jeder einige etwas solche ersten erste zweiter zweite oft heißt heißen genannt nennen bezeichnet bezeichnen`.split(' '));
 export function isSemanticCandidate(value,language='en') {
   const w=normalizeWord(value);
   if (!w || (language==='de'?GERMAN_FUNCTION_WORDS:FUNCTION_WORDS).has(w)) return false;
@@ -98,7 +98,7 @@ export function rankEmbeddingHints(relativeScores,context,language='en',topic=0)
   const supportedFloor=wordFloor-(topic>=.45?.025:0);
   return relativeScores
     .filter(([,similarity,prominence])=>similarity>=supportedFloor&&prominence>=prominenceFloor)
-    .slice(0,6)
+    .slice(0,topic<.30?3:6)
     .map(([word,,prominence])=>[word,Math.min(.67,.38+(prominence-prominenceFloor)*.9)]);
 }
 
@@ -159,7 +159,11 @@ export function mergeHints(round,guess,scores={}) {
     for(const token of new Set(tokenize(round.extract))){
       if(!/^[12]\d{3}$/.test(token))continue;
       const distance=Math.abs(Number(word)-Number(token));
-      if(distance>0 && distance<=25)storeHint(round,token,word,.9-distance*.02);
+      if(distance>0 && distance<=50){
+        storeHint(round,token,word,.9-distance*.01);
+      }else if(distance>50 && Math.floor(Number(word)/1000)===Math.floor(Number(token)/1000)){
+        storeHint(round,token,word,.38+.10*(1-distance/1000));
+      }
     }
     return;
   }

@@ -28,7 +28,7 @@ class TestWorker {constructor(){this.onmessage=null;}
  postMessage(d){const send=msg=>setTimeout(()=>this.onmessage?.({data:{epoch:d.epoch,...msg}}),5);
  if(d.type==='init'){this.text=d.text;send({type:'ready',mode:'basic',detail:'Grundmodus'});}
  if(d.type==='score'){
-   if(d.checkSpelling&&d.guess==='mosqutio'){send({type:'spelling',requestId:d.requestId,suggestion:'mosquito'});return;}
+   if(d.checkSpelling&&d.guess==='bioloyg'){send({type:'spelling',requestId:d.requestId,suggestion:'biology'});return;}
    const scores={};
    send({type:'score',requestId:d.requestId,guess:d.guess,scores});
  }
@@ -63,10 +63,10 @@ with sync_playwright() as playwright:
   assert page.locator('#guessInput').get_attribute('placeholder')=='English word'
   assert page.locator('.word.hidden').count()>3
   assert page.locator('#maskedTitle .word.hidden').count()==1
-  page.locator('#guessInput').fill('mosqutio')
+  page.locator('#guessInput').fill('bioloyg')
   page.locator('#guessInput').press('Enter')
-  page.get_by_text('Did you mean “mosquito”?',exact=False).wait_for()
-  assert page.locator('#guessInput').input_value()=='mosqutio'
+  page.get_by_text('Press Enter to use “biology”',exact=False).wait_for()
+  assert page.locator('#guessInput').input_value()=='biology'
   assert page.locator('#guessCount').inner_text()=='0'
   # A tap or keyboard action temporarily overlays the exact letter count.
   hidden=page.locator('#articleText .word.hidden').first
@@ -85,8 +85,11 @@ with sync_playwright() as playwright:
   assert page.locator('#maskedTitle .word.exact').count()==0
   page.screenshot(path=f'/mnt/data/lexipedia-{name}-before.png',full_page=True)
   for i,word in enumerate(['biology','animal','insect','fly','mosquito'],1):
-   page.locator('#guessInput').fill(word)
-   page.locator('#submitButton').click()
+   if i==1:
+    page.locator('#guessInput').press('Enter')
+   else:
+    page.locator('#guessInput').fill(word)
+    page.locator('#submitButton').click()
    page.wait_for_function('(n)=>document.querySelector("#guessCount").textContent===String(n)',arg=i,timeout=12000)
    assert page.locator('#guessInput').input_value()==''
    if i==1:

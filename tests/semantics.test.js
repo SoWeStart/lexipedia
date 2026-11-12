@@ -31,17 +31,37 @@ test('only content words are eligible for model hints',()=>{
 });
 
 test('nearby years show the guess and closer guesses replace it',()=>{
-  const round=createRound({title:'1701',extract:'The events of 1701 followed those of 1699 and 1650.'});
+  const round=createRound({title:'1701',extract:'The events of 1701 followed those of 1699 and 2050.'});
   applyGuess(round,'1700');
   assert.equal(tokenState(round,'1701').label,'1700');
   assert.equal(tokenState(round,'1701').type,'near');
   assert.equal(tokenState(round,'1701',true).type,'hidden');
-  assert.equal(tokenState(round,'1650').type,'hidden');
+  assert.equal(tokenState(round,'2050').type,'hidden');
   assert.equal(tokenState(round,'1699').type,'near');
   applyGuess(round,'1708');
   assert.equal(tokenState(round,'1701').label,'1700');
   assert.equal(applyGuess(round,'1701').won,true);
   assert.equal(tokenState(round,'1701').type,'exact');
+});
+
+test('historical numbers give a subdued clue before closer and exact guesses',()=>{
+  const round=createRound({title:'Ginkgo',extract:'Der Baum wurde 1730 angepflanzt.',language:'de'});
+  applyGuess(round,'1000');
+  assert.equal(tokenState(round,'1730').label,'1000');
+  assert.ok(tokenState(round,'1730').score<.49);
+  applyGuess(round,'1700');
+  assert.equal(tokenState(round,'1730').label,'1700');
+  applyGuess(round,'1730');
+  assert.equal(tokenState(round,'1730').type,'exact');
+});
+
+test('be covers all eight English forms without producing semantic hints',()=>{
+  const forms=['be','am','is','are','was','were','being','been'];
+  const round=createRound({title:'English',extract:forms.join(' ')});
+  applyGuess(round,'be',{language:1});
+  for(const form of forms)assert.equal(tokenState(round,form).type,'exact');
+  assert.equal(tokenState(round,'language').type,'hidden');
+  for(const word of ['oft','genannt','bezeichnet'])assert.equal(isSemanticCandidate(word,'de'),false);
 });
 
 test('exact small numbers work without generating numeric hints from the model',()=>{
@@ -88,9 +108,10 @@ test('model hints retain strong candidates and bound the number of matches',()=>
     ...Array.from({length:12},(_,i)=>['background'+i,.26,.3]),
   ];
   const relative=relativeEmbeddingScores(scores);
-  const ranked=rankEmbeddingHints(relative,.3);
+  const ranked=rankEmbeddingHints(relative,.3,'en',.5);
   assert.equal(ranked[0][0],'strongest');
   assert.equal(ranked.length,6);
+  assert.equal(rankEmbeddingHints(relative,.3,'en',.2).length,3);
   assert.ok(ranked.every(([,score])=>score<=.67));
   assert.ok(ranked.every(([word])=>word!=='generic'&&word!=='distant'));
   assert.deepEqual(rankEmbeddingHints(relative,.02),[]);

@@ -1,6 +1,6 @@
 /* Isolates model loading/inference from the UI thread. All inference is local in the browser. */
-import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints, topicCloseness, relativeEmbeddingScores} from './core.js?v=13';
-import {prepareSpelling,spellingIssue} from './spelling.js?v=13';
+import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints, topicCloseness, relativeEmbeddingScores} from './core.js?v=14';
+import {prepareSpelling,spellingIssue} from './spelling.js?v=14';
 
 let currentEpoch=0, language='en', targetWords=[], extractedVectors=new Map(), extractor=null, modelReady=false;
 let articleVector=null, titleVector=null, passageVectors=[], typicalities=new Map();
@@ -46,7 +46,7 @@ function ensureModel(lang){
 async function init(epoch,text,title,lang){
   currentEpoch=epoch;
   language=lang;
-  targetWords=uniqueWords(text,lang);
+  targetWords=uniqueWords(text.replace(/\[[^\]\n]+\]/g,' '),lang);
   extractedVectors=new Map();
   articleVector=null;titleVector=null;passageVectors=[];typicalities=new Map();
   modelReady=false;
