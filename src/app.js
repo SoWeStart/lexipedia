@@ -1,16 +1,16 @@
-import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=9';
-import {conceptBatch,hasConcept} from './concepts.js?v=9';
-import {strings} from './language.js?v=9';
-import {titleKey} from './pool.js?v=9';
-import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=9';
+import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=10';
+import {strings} from './language.js?v=10';
+import {titleKey} from './pool.js?v=10';
+import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=10';
 
 const $=id=>document.getElementById(id);
 const ui={form:$('guessForm'),input:$('guessInput'),submit:$('submitButton'),message:$('message'),history:$('history'),guessCount:$('guessCount'),elapsed:$('elapsed'),titleProgress:$('titleProgress'),maskedTitle:$('maskedTitle'),articleText:$('articleText'),articleBadge:$('articleBadge'),sourceLink:$('sourceLink')};
 const STORE_PREFIX='lexipedia:v1:';
-const SEMANTIC_VERSION=6;
+const SEMANTIC_VERSION=7;
 let round=null,activeRoute='',epoch=0,controller=null,worker=null,serial=0,pending=new Map(),busy=false;
 let choosingClue=false;
 let unrecognizedWord='';
+let semanticStatus='loading';
 const lastRoutes=new Map();
 
 function safeStorageGet(key){try{return localStorage.getItem(key)}catch{return null}}
@@ -125,12 +125,10 @@ function loadSaved(key){try{
   if(r.revealed && r.abandoned===undefined)r.abandoned=!getTitleProgress(r).complete;
   if(r.semanticVersion!==SEMANTIC_VERSION){
     r.hints={}; r.semanticVersion=SEMANTIC_VERSION;
-    const targets=getUniqueWords(r.extract,r.language);
-    for(const guess of r.guesses)mergeHints(r,guess,conceptBatch(guess,targets,r.language));
+    for(const guess of r.guesses)mergeHints(r,guess);
   }
   return r;
 }catch{return null}}
-function getUniqueWords(text,lang){return [...new Set(tokenize(text).filter(isWord).map(normalizeWord))].filter(word=>isSemanticCandidate(word,lang));}
 function setBusy(value){
   busy=value;
   ui.submit.disabled=ui.input.disabled=value||!round||!!round.finishedAt;
@@ -139,25 +137,35 @@ function setBusy(value){
 function prepareSemantic(){
   if(!round)return;
   const current=epoch;
+  semanticStatus=worker?'loading':'unavailable';
   round.semanticVersion=SEMANTIC_VERSION;
   if(worker){worker.postMessage({type:'init',epoch:current,text:round.extract,language:round.language});}
 }
 function ensureWorker(){
   try{
-    worker=new Worker(new URL('./semantic-worker.js?v=9',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./semantic-worker.js?v=10',import.meta.url),{type:'module'});
     worker.onmessage=e=>{
       const d=e.data;
       if(d.epoch!==epoch)return;
       if(d.type==='ready'){
+        semanticStatus=d.mode==='model'?'ready':'unavailable';
+        if(message.key==='semanticLoading'&&semanticStatus==='unavailable')showMessage('semanticUnavailable');
         if(d.mode==='model'){
-          for(const word of (round?.guesses||[])) requestScore(word,true);
+          for(const word of (round?.guesses||[])){
+            if(isSemanticCandidate(word,round.language))requestScore(word,true);
+          }
         }
         return;
       }
       if(d.type==='score'){
         const request=pending.get(d.requestId);if(!request)return;
         pending.delete(d.requestId);
-        if(request.replay){mergeHints(round,d.guess,d.scores);save();renderArticle();renderHistory();}
+        if(request.replay){
+          mergeHints(round,d.guess,d.scores);save();renderArticle();renderHistory();
+          if(message.key==='semanticLoading' && round.guesses.at(-1)===d.guess){
+            showMessage('guessFeedback','',exactHits(d.guess),semanticHits(d.guess));
+          }
+        }
         else finishGuess(d.guess,d.scores);
       }
       if(d.type==='spelling'){
@@ -170,15 +178,16 @@ function ensureWorker(){
       }
     };
     worker.onerror=()=>{worker?.terminate();worker=null;
-      for(const request of pending.values())if(!request.replay)finishGuess(request.word,localScores(request.word));
+      semanticStatus='unavailable';
+      if(message.key==='semanticLoading')showMessage('semanticUnavailable');
+      for(const request of pending.values())if(!request.replay)finishGuess(request.word,{});
       pending.clear();
     };
   }catch{worker=null;}
 }
-function localScores(word){return conceptBatch(word,getUniqueWords(round.extract,round.language),round.language);}
 function requestScore(word,replay=false,original=word,checkSpelling=false){
   if(!round)return;
-  if(!worker){const scores=localScores(word);if(replay){mergeHints(round,word,scores);renderArticle();renderHistory();}else finishGuess(word,scores);return;}
+  if(!worker){if(!replay)finishGuess(word,{});return;}
   const requestId=++serial;
   pending.set(requestId,{word,replay,original});
   worker.postMessage({type:'score',epoch,guess:word,requestId,checkSpelling});
@@ -294,7 +303,10 @@ function finishGuess(word,scores){
   setBusy(false);
   if(!result.accepted){showMessage('oneWord','error');return;}
   save();renderAll();
-  showMessage('guessFeedback','',exactHits(word),semanticHits(word));
+  const exact=exactHits(word),hints=semanticHits(word);
+  if(!exact&&!hints&&!result.won&&isSemanticCandidate(word,round.language)&&semanticStatus!=='ready'){
+    showMessage(semanticStatus==='loading'?'semanticLoading':'semanticUnavailable');
+  }else showMessage('guessFeedback','',exact,hints);
   if(result.won){choosingClue=false;setBusy(false);showWin();}
   ui.input.value='';ui.input.focus({preventScroll:true});
 }
@@ -384,7 +396,7 @@ function setupEvents(){
       showMessage('duplicate','error');return;
     }
     if(!/^[\p{L}\p{N}]+(?:[’‘'-][\p{L}\p{N}]+)*$/u.test(original.trim().normalize('NFKC'))){showMessage('oneWord','error');return;}
-    const known=hasConcept(value,round.language)||exactHits(value)>0||
+    const known=exactHits(value)>0||
       tokenize(round.title).some(token=>isWord(token)&&sameWord(token,value,round.language));
     const checkSpelling=value!==unrecognizedWord&&!known&&!/\d/.test(value);
     unrecognizedWord='';

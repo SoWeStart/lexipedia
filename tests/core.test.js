@@ -1,7 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {normalizeWord,stemWord,sameWord,tokenize,isWord,createRound,applyGuess,mergeHints,tokenState,getTitleProgress,encodeTitle,decodeTitle,seedIndex} from '../src/core.js';
-import {conceptSimilarity,conceptBatch} from '../src/concepts.js';
 import {parseWikiResponse,practiceArticle} from '../src/wiki.js';
 import {ARTICLES} from '../src/articles.js';
 
@@ -79,16 +78,6 @@ test('compound titles require all terms',()=>{
   applyGuess(round,'great');applyGuess(round,'reef');
   assert.deepEqual(getTitleProgress(round),{total:3,found:2,complete:false});
   assert.equal(applyGuess(round,'barrier').won,true);
-});
-
-test('conceptual fallback has coherent biological hierarchy',()=>{
-  const s=word=>conceptSimilarity(word,'mosquito');
-  assert.ok(s('insect')>s('animal'));
-  assert.ok(s('animal')>s('mammal'));
-  assert.ok(s('animal')>s('mathematics'));
-  assert.ok(conceptSimilarity('biology','insect')>0.3);
-  assert.ok(conceptSimilarity('mosquito','malaria')>0.65);
-  assert.ok(conceptBatch('nature',['insect','mathematics']).insect>0);
 });
 
 test('seed selection is deterministic and links handle unicode',()=>{

@@ -1,7 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {isSemanticCandidate, calibratedEmbeddingScore, rankEmbeddingHints, createRound, applyGuess, tokenState, mergeHints, useClue, revealRound, CLUE_LIMIT, getTitleProgress} from '../src/core.js';
-import {conceptBatch} from '../src/concepts.js';
 
 test('function words never become semantic hints even with pathological model scores',()=>{
   const round=createRound({title:'Mosquito',extract:'A mosquito is an animal, and the insect flies.'});
@@ -35,16 +34,6 @@ test('only content word pairs use raw embedding scores, with conservative calibr
   assert.ok(calibratedEmbeddingScore(.9)>calibratedEmbeddingScore(.8));
 });
 
-test('biological topic progression is meaningful in the curated graph',()=>{
-  const targets=['mosquito','insect','animal','mammal','physics','water'];
-  const animal=conceptBatch('animal',targets);
-  const insect=conceptBatch('insect',targets);
-  assert.ok(insect.mosquito>animal.mosquito);
-  assert.ok(animal.insect>animal.physics);
-  assert.ok(animal.mammal>animal.physics);
-  assert.equal(conceptBatch('mathematics',['biology']).biology,0, 'unrelated disciplines must not leak through science');
-});
-
 test('nearby years show the guess and closer guesses replace it',()=>{
   const round=createRound({title:'1701',extract:'The events of 1701 followed those of 1699 and 1650.'});
   applyGuess(round,'1700');
@@ -67,29 +56,12 @@ test('exact small numbers work without generating numeric hints from the model',
   assert.equal(tokenState(round,'1701').type,'hidden');
 });
 
-test('calendar hints work without the model and preserve the function-word filter',()=>{
-  const targets=['november','september','may','months','monday','year','physics','is'];
-  for(const guess of ['september','month','months','calendar']){
-    const round=createRound({title:'November',extract:'November is a month and may be rainy.'});
-    applyGuess(round,guess,conceptBatch(guess,targets));
-    assert.equal(tokenState(round,'November').type,'near',guess);
-    assert.equal(tokenState(round,'November',true).type,'hidden');
-    assert.equal(tokenState(round,'may').type,'hidden');
-    assert.equal(tokenState(round,'is').type,'hidden');
-  }
-  assert.ok(conceptBatch('monday',['friday']).friday>=.38);
-  assert.ok(conceptBatch('summer',['winter']).winter>=.38);
-  assert.ok(conceptBatch('blue',['red']).red>=.38);
-  assert.equal(conceptBatch('september',['monday']).monday,0);
-});
-
-test('German clues use German categories and function-word filtering',()=>{
+test('German model hints preserve function-word filtering and exact title guesses',()=>{
   const round=createRound({title:'November',extract:'November ist ein Monat, 1701 war ein Jahr.',language:'de'});
-  applyGuess(round,'September',{...conceptBatch('September',['november'],'de'),ist:1,ein:1});
+  applyGuess(round,'September',{november:.61,ist:1,ein:1});
   assert.equal(tokenState(round,'November').type,'near');
   assert.equal(tokenState(round,'ist').type,'hidden');
   assert.equal(tokenState(round,'ein').type,'hidden');
-  assert.ok(conceptBatch('Monate',['November'],'de').November>=.38);
   applyGuess(round,'1700');
   assert.equal(tokenState(round,'1701').type,'near');
   assert.equal(applyGuess(round,'NOVEMBER').won,true);
@@ -113,41 +85,7 @@ test('three individual letter clues persist and revealing the article ends the r
   assert.equal(revealRound(restored),false);
 });
 
-test('Moon clues lead from astronomy and sun to visible article terms without giving away the title',()=>{
-  const targets=['mond','erdmond','satellit','erde','sonnensystems','ist','der','wahl'];
-  for(const guess of ['astronomie','sonne']){
-    const round=createRound({title:'Mond',extract:'Der Erdmond ist ein Satellit der Erde und Teil des Sonnensystems.',language:'de'});
-    const scores=conceptBatch(guess,targets,'de');
-    applyGuess(round,guess,scores);
-    for(const word of ['Erdmond','Satellit','Sonnensystems'])assert.equal(tokenState(round,word).type,'near',guess+' '+word);
-    for(const word of ['ist','der','Wahl'])assert.equal(tokenState(round,word).type,'hidden');
-    assert.equal(tokenState(round,'Mond',true).type,'hidden');
-  }
-});
-
-test('semantic coverage extends across both languages and keeps unrelated domains apart',()=>{
-  const cases=[
-    ['de','geologie','gesteinsschmelze','bundesland'],
-    ['de','pflanze','kakteengewächse','spannung'],
-    ['de','dreieck','katheten','satellit'],
-    ['de','schwert','florett','hormon'],
-    ['de','diabetes','bauchspeicheldrüse','quadrat'],
-    ['de','demokratie','menschenrechte','mond'],
-    ['de','welle','empfänger','religion'],
-    ['en','plant','cacti','parliament'],
-    ['en','orbit','tides','insulin'],
-    ['en','province','federalism','triangle'],
-    ['en','triangle','hypotenuse','orbit'],
-    ['en','electronics','semiconductor','monarchy'],
-  ];
-  for(const [lang,guess,related,unrelated] of cases){
-    const scores=conceptBatch(guess,[related,unrelated],lang);
-    assert.ok(scores[related]>=.38,`${guess} → ${related}`);
-    assert.ok(scores[unrelated]<.38,`${guess} ↛ ${unrelated}`);
-  }
-});
-
-test('model-only hints retain strong candidates and leave room for curated hints',()=>{
+test('model hints retain strong candidates and bound the number of matches',()=>{
   const ranked=rankEmbeddingHints([
     ['generic',.72],['distant',.75],['strongest',.91],
     ...Array.from({length:8},(_,i)=>['related'+i,.85-i*.002]),

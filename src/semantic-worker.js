@@ -1,7 +1,6 @@
 /* Isolates model loading/inference from the UI thread. All inference is local in the browser. */
-import {conceptBatch} from './concepts.js?v=9';
-import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints} from './core.js?v=9';
-import {prepareSpelling,spellingIssue} from './spelling.js?v=9';
+import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints} from './core.js?v=10';
+import {prepareSpelling,spellingIssue} from './spelling.js?v=10';
 
 let currentEpoch=0, language='en', targetWords=[], extractedVectors=new Map(), extractor=null, modelReady=false;
 const MODELS={en:'Xenova/all-MiniLM-L6-v2',de:'Xenova/paraphrase-multilingual-MiniLM-L12-v2'};
@@ -69,17 +68,15 @@ async function score(epoch,guess,requestId,checkSpelling){
     const issue=spellingIssue(checker,word,language);
     if(issue){post('spelling',{requestId,...issue});return;}
   }
-  const scores=candidate?conceptBatch(word,targetWords,language):{};
+  const scores=Object.create(null);
   if(modelReady&&candidate){
     try {
       const vector=(await embedBatch(extractor,[word]))[0];
       if(epoch!==currentEpoch)return;
-      const comparisons=targetWords.filter(target=>!sameWord(word,target,language)&&scores[target]<.38)
+      const comparisons=targetWords.filter(target=>!sameWord(word,target,language))
         .map(target=>[target,cosine(vector,extractedVectors.get(target))]);
       for(const [target,similarity] of rankEmbeddingHints(comparisons))scores[target]=similarity;
-    }catch{
-      // Keep the lexical hints if inference fails.
-    }
+    }catch{if(epoch===currentEpoch)post('ready',{mode:'basic'});}
   }
   if(epoch===currentEpoch)post('score',{requestId,guess:word,scores,mode:modelReady?'model':'basic'});
 }

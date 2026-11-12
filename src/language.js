@@ -23,6 +23,8 @@ export const strings = {
     duplicate:'Schon geraten.', oneWord:'Gib ein einzelnes Wort ein (max. 42 Zeichen).',
     spellingSuggestion:word=>`Meintest du „${word}“? Korrigiere die Eingabe oder drücke erneut Enter.`,
     unknownWord:'Unbekanntes Wort. Korrigiere es oder drücke erneut Enter.',
+    semanticLoading:'Ähnlichkeit wird nachgetragen, sobald das Sprachmodell bereit ist.',
+    semanticUnavailable:'Ähnlichkeit vorübergehend nicht verfügbar. Exakte Treffer zählen.',
   },
   en: {
     language:'Language', help:'How to play', close:'Close', controls:'Game controls', stats:'Game statistics',
@@ -48,5 +50,7 @@ export const strings = {
     duplicate:'Already guessed.', oneWord:'Enter a single word (up to 42 characters).',
     spellingSuggestion:word=>`Did you mean “${word}”? Edit it or press Enter again.`,
     unknownWord:'Unrecognized word. Edit it or press Enter again.',
+    semanticLoading:'Similarity hints will appear when the language model is ready.',
+    semanticUnavailable:'Similarity is temporarily unavailable. Exact matches still count.',
   },
 };

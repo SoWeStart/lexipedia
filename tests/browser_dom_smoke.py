@@ -8,7 +8,7 @@ css=(ROOT/'styles.css').read_text()
 css=re.sub(r'@import[^;]+;','',css)
 html=re.sub(r'<link rel="stylesheet" href="\./styles\.css[^"]*">',lambda _: '<style>'+css+'</style>',html)
 html=re.sub(r'<script type="module" src="\./src/app\.js[^"]*"></script>','',html)
-modules=['core','concepts','articles','language','pool','wiki','app']
+modules=['core','articles','language','pool','wiki','app']
 source='\n'.join((ROOT/f'src/{name}.js').read_text() for name in modules)
 source=re.sub(r'^import .*?;\s*$','',source,flags=re.MULTILINE)
 source=re.sub(r'\bexport (function|const|class|async function)\b',r'\1',source)
@@ -29,7 +29,7 @@ class TestWorker {constructor(){this.onmessage=null;}
  if(d.type==='init'){this.text=d.text;send({type:'ready',mode:'basic',detail:'Grundmodus'});}
  if(d.type==='score'){
    if(d.checkSpelling&&d.guess==='mosqutio'){send({type:'spelling',requestId:d.requestId,suggestion:'mosquito'});return;}
-   const scores=conceptBatch(d.guess,[...new Set(tokenize(this.text).filter(isWord).map(normalizeWord))]);
+   const scores={};
    send({type:'score',requestId:d.requestId,guess:d.guess,scores});
  }
  }

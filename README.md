@@ -9,7 +9,7 @@ A free, mobile-friendly, Wikipedia article word-discovery game with unlimited ro
 - Word-by-word reveal, case-insensitive morphological matching (`fly` / `flies`, `mosquito` / `mosquitoes`)
 - Semantic hints for every hidden word in the article, with more relevant guesses replacing previous hints
 - No semantic hints in the article title: all title words must be guessed exactly
-- Browser-based MiniLM embedding model (approx. 23 MB first download) plus an offline basic fallback lexicon
+- Browser-based English and multilingual MiniLM models for related-word hints
 - Local saved games, timer, attempt history, installable PWA
 - Works on GitHub Pages **without a server, database or paid API**
 
@@ -18,22 +18,21 @@ A free, mobile-friendly, Wikipedia article word-discovery game with unlimited ro
 1. The browser requests a suitable introduction from the selected German or English Wikipedia edition. Shared links retain the edition, and each language has its own round history.
 2. Each guess is checked for exact matches. English rounds also match common word inflections.
 3. A Web Worker computes semantic similarity between the guessed word and each unique article word. It uses `Xenova/all-MiniLM-L6-v2` (Apache 2.0) via Transformers.js (also Apache 2.0) and conservative, calibrated cosine similarity. Grammatical function words are excluded from semantic hints (but can still be revealed by exact guesses).
-4. A short-path lexical graph (with broad-topic hub restrictions to avoid unrelated links) supplements the scores and keeps a limited fallback available if the model cannot load. **The fallback is deliberately less comprehensive than a pretrained semantic model.**
+4. Semantic hints are computed from the model's vectors. Guesses made during loading are scored again once the model is ready.
 5. For each token, the highest similarity among previous guesses is displayed. The player wins only when all article title words are guessed exactly.
 
 ### Limitations / tradeoffs
 
-- First model download is about 23 MB, plus Transformers.js/WASM dependencies, and can take time on mobile devices. The fallback mode remains playable while the download runs.
+- The first model download can take time. Exact matches and nearby-year hints work during loading.
 - Sentence embeddings are designed mainly for sentences, so **word-level similarity needs evaluation**. Scores are not probabilities. This is an MVP requiring broader model-quality and mobile-device testing before claiming parity with Pedantle.
-- The semantic filter rejects weaker correlations. Language-specific lexical graphs provide hints before the English or multilingual model is ready.
-- Curated relationships and selected German compound stems take priority over model-only hints. A guess can add up to six model-only hints. The regression tests cover related and unrelated words across topics, including astronomy, history, medicine and geometry.
+- The semantic filter rejects weaker correlations and shows up to six model suggestions per guess.
 - Hint mode reveals the first letter of a selected word, up to three times per round. Reveal shows the title and introduction and ends the round without a win.
 - After a win, **Show full text** fills in the introduction and keeps the win. If the local spell checker flags a guess, the input is kept for editing. Press Enter again to use the original spelling.
 - Shared links supply the same article but there is **no synchronized live multiplayer** or server-verified high-score leaderboard. Friends compare results manually.
 - New rounds draw from a curated pool across eleven topics. Selection favors intermediate articles and gives recently played topics less weight. The game checks the current Wikipedia introduction and prefers unplayed articles, then reuses the least recently played eligible articles. The finite pool supports unlimited rounds.
 - Shared links identify the selected article and round. The title is encoded, not encrypted. Existing seed links still use the original pool.
 - Reading the browser's source, network traffic or local saved state can reveal the solution. This is a recreational game, not a cheat-proof competitive platform.
-- The online Wikipedia API and third-party model CDN must be reachable. Existing rounds and the basic lexicon remain partially usable offline; new Wikipedia articles cannot be fetched offline.
+- The online Wikipedia API and third-party model CDN must be reachable. Existing rounds remain partially usable offline; new Wikipedia articles cannot be fetched offline.
 - There is no fee for the app itself, but an internet connection/data plan may have costs.
 
 ## Run locally
@@ -52,7 +51,7 @@ Open `http://localhost:8000/` in a modern browser. For HTTPS deployment, GitHub 
 npm test
 ```
 
-Pure unit tests also enforce the `animal` vs. `a` / `is` false-positive regression and reject broad-hub leakage. Other tests cover word inflections, semantically weighted lexical graph, article parsing, reproducible seed selection, share URL decoding, and winning logic. Browser integration tests can be run with Playwright (not bundled as a dependency). The actual hosted MiniLM/ONNX download cannot be fully verified in a network-isolated test environment.
+Pure unit tests also enforce the `animal` vs. `a` / `is` false-positive regression . Other tests cover word inflections, similarity ranking, article parsing, reproducible seed selection, share URL decoding, and winning logic. Browser integration tests can be run with Playwright (not bundled as a dependency). The actual hosted MiniLM/ONNX download cannot be fully verified in a network-isolated test environment.
 
 ## Publish for free via GitHub Pages
 
@@ -75,7 +74,6 @@ The project includes `.nojekyll` for static deployment. Node dependencies are no
 ## Developer notes
 
 - `src/core.js`: pure game logic and morphology.
-- `src/concepts.js`: small fallback concept graph, deterministic scores.
 - `src/articles.js`: shared challenge vocabulary and offline practice text.
 - `src/wiki.js`: Wikipedia API integration and validation.
 - `src/spelling.js`: optional local spelling checks with [nspell](https://github.com/wooorm/nspell) and [Hunspell dictionaries](https://github.com/wooorm/dictionaries) loaded from jsDelivr.
