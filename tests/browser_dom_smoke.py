@@ -29,7 +29,7 @@ class TestWorker {constructor(){this.onmessage=null;}
  if(d.type==='init'){this.text=d.text;send({type:'ready',mode:'basic',detail:'Grundmodus'});}
  if(d.type==='score'){
    if(d.checkSpelling&&d.guess==='bioloyg'){send({type:'spelling',requestId:d.requestId,suggestion:'biology'});return;}
-   const scores={};
+   const scores=d.guess==='biology'?{culicidae:.41}:d.guess==='animal'?{culicidae:.6}:{};
    send({type:'score',requestId:d.requestId,guess:d.guess,scores});
  }
  }
@@ -97,6 +97,10 @@ with sync_playwright() as playwright:
     page.locator('#guessInput').press('Enter')
     assert page.locator('#guessInput').input_value()==''
     assert page.locator('#guessCount').inner_text()=='1'
+   if i==2:
+    biology=page.locator('.history-item').filter(has_text='biology')
+    assert '1 hint' in biology.locator('.history-meta').inner_text()
+    assert page.locator('#articleText .near').filter(has_text='animal').count()>0
   assert page.locator('#maskedTitle .word.exact').count()==1
   assert page.locator('#winDialog').evaluate('(el)=>el.open')
   assert page.locator('#articleBadge').inner_text()=='SOLVED'

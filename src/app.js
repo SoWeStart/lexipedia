@@ -1,7 +1,7 @@
-import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=15';
-import {strings} from './language.js?v=15';
-import {titleKey} from './pool.js?v=15';
-import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=15';
+import {normalizeWord, stemWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=16';
+import {strings} from './language.js?v=16';
+import {titleKey} from './pool.js?v=16';
+import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=16';
 
 const $=id=>document.getElementById(id);
 const ui={form:$('guessForm'),input:$('guessInput'),submit:$('submitButton'),message:$('message'),history:$('history'),guessCount:$('guessCount'),elapsed:$('elapsed'),titleProgress:$('titleProgress'),maskedTitle:$('maskedTitle'),articleText:$('articleText'),articleBadge:$('articleBadge'),sourceLink:$('sourceLink')};
@@ -12,6 +12,7 @@ let choosingClue=false;
 let unrecognizedWord='';
 let semanticStatus='loading';
 let replayQueue=[];
+const exactCountsByRound=new WeakMap();
 const lastRoutes=new Map();
 
 function safeStorageGet(key){try{return localStorage.getItem(key)}catch{return null}}
@@ -129,6 +130,10 @@ function loadSaved(key){try{
     r.topics={};
     for(const guess of r.guesses)mergeHints(r,guess);
   }
+  if(!r.earnedHints){
+    r.earnedHints=Object.create(null);
+    for(const {guess} of Object.values(r.hints))r.earnedHints[guess]=(r.earnedHints[guess]??0)+1;
+  }
   return r;
 }catch{return null}}
 function setBusy(value){
@@ -149,7 +154,7 @@ function replayNext(){
 }
 function ensureWorker(){
   try{
-    worker=new Worker(new URL('./semantic-worker.js?v=15',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./semantic-worker.js?v=16',import.meta.url),{type:'module'});
     worker.onmessage=e=>{
       const d=e.data;
       if(d.epoch!==epoch)return;
@@ -162,6 +167,7 @@ function ensureWorker(){
         }else{
           replayQueue=[];
         }
+        renderHistory();
         return;
       }
       if(d.type==='score'){
@@ -169,7 +175,7 @@ function ensureWorker(){
         pending.delete(d.requestId);
         if(Number.isFinite(d.topic))(round.topics??={})[d.guess]=d.topic;
         if(request.replay){
-          mergeHints(round,d.guess,d.scores);save();renderArticle();renderHistory();
+          mergeHints(round,d.guess,d.scores);rememberHints(d.guess);save();renderArticle();renderHistory();
           if(['semanticLoading','guessFeedback','guessSummary'].includes(message.key) && round.guesses.at(-1)===d.guess){
             showGuessFeedback(d.guess);
           }
@@ -285,8 +291,33 @@ function renderArticle(){
   ui.articleBadge.hidden=!round.finishedAt;ui.articleBadge.classList.toggle('done',!!round.finishedAt&&!round.abandoned);
   renderClueControls();
 }
-function exactHits(guess){return tokenize(round.extract).filter(x=>isWord(x)&&sameWord(x,guess,round.language)).length;}
+function exactHits(guess){
+  const key=round.language==='de'?normalizeWord:stemWord;
+  let counts=exactCountsByRound.get(round);
+  if(!counts){
+    counts=new Map();
+    for(const token of tokenize(round.extract)){
+      if(!isWord(token))continue;
+      const normalized=key(token);
+      counts.set(normalized,(counts.get(normalized)??0)+1);
+    }
+    exactCountsByRound.set(round,counts);
+  }
+  return counts.get(key(guess))??0;
+}
 function semanticHits(guess){return Object.values(round.hints).filter(x=>x.guess===guess).length;}
+function rememberHints(guess){
+  const count=semanticHits(guess);
+  if(!count)return;
+  const earned=round.earnedHints??=Object.create(null);
+  const previous=Object.hasOwn(earned,guess)?earned[guess]:0;
+  earned[guess]=Math.max(previous,count);
+}
+function waitingForHints(guess){
+  return isSemanticCandidate(guess,round.language)&&
+    !Object.hasOwn(round.topics??{},guess)&&
+    (semanticStatus==='loading'||replayQueue.includes(guess)||[...pending.values()].some(request=>request.replay&&request.word===guess));
+}
 function topicLabel(guess){
   const score=round.topics?.[guess];
   return score>0?tr(score>=.82?'topicNear':score>=.42?'topicRelated':'topicLead'):'';
@@ -307,7 +338,8 @@ function renderHistory(){
   }
   const fragment=document.createDocumentFragment();
   for(let i=round.guesses.length-1;i>=0;i--){
-    const guess=round.guesses[i],ex=exactHits(guess),ne=semanticHits(guess);
+    const guess=round.guesses[i],ex=exactHits(guess);
+    const ne=Object.hasOwn(round.earnedHints??{},guess)?round.earnedHints[guess]:0;
     const row=document.createElement('div');row.className='history-item '+(ex?'found':ne?'related':'');
     const n=document.createElement('span');n.className='history-number';n.textContent=`${i+1}.`;
     const word=document.createElement(guess===bestGuess?'strong':'span');
@@ -317,7 +349,9 @@ function renderHistory(){
       word.setAttribute('aria-label',tr('bestTopic',guess));
       word.title=tr('bestTopic',guess);
     }
-    const count=document.createElement('span');count.className='history-meta';count.textContent=[ex?tr('exactCount',ex):'',ne?tr('hintCount',ne):'',topicLabel(guess)].filter(Boolean).join(' · ')||tr('noHit');
+    const count=document.createElement('span');count.className='history-meta';
+    count.textContent=[ex?tr('exactCount',ex):'',ne?tr('hintCount',ne):'',topicLabel(guess),waitingForHints(guess)?tr('pendingHints'):''].filter(Boolean).join(' · ')||tr('noHit');
+    if(ne)count.title=tr('earnedHints');
     row.append(n,word,count);fragment.append(row);
   }
   ui.history.replaceChildren(fragment);
@@ -336,6 +370,7 @@ function finishGuess(word,scores){
   const result=applyGuess(round,word,scores);
   setBusy(false);
   if(!result.accepted){showMessage('oneWord','error');return;}
+  rememberHints(word);
   save();renderAll();
   const exact=exactHits(word),hints=semanticHits(word);
   if(!exact&&!hints&&!result.won&&isSemanticCandidate(word,round.language)&&semanticStatus!=='ready'){

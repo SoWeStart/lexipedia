@@ -28,6 +28,7 @@ export const strings = {
     semanticUnavailable:'Ähnlichkeit vorübergehend nicht verfügbar. Exakte Treffer zählen.',
     guessSummary:summary=>summary, topicLead:'Thematische Spur', topicRelated:'Im Themenfeld', topicNear:'Thematisch nah',
     bestTopic:guess=>`${guess} · Stärkste Themenspur`,
+    pendingHints:'Ähnlichkeit folgt', earnedHints:'Hinweise, die dieser Versuch sichtbar gemacht hat',
   },
   en: {
     language:'Language', help:'How to play', close:'Close', controls:'Game controls', stats:'Game statistics',
@@ -58,5 +59,6 @@ export const strings = {
     semanticUnavailable:'Similarity is temporarily unavailable. Exact matches still count.',
     guessSummary:summary=>summary, topicLead:'Topic clue', topicRelated:'Related topic', topicNear:'Close to the topic',
     bestTopic:guess=>`${guess} · Strongest topic clue`,
+    pendingHints:'Similarity pending', earnedHints:'Hints this guess uncovered',
   },
 };
