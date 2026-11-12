@@ -108,7 +108,7 @@ test('both pools exclude the flagged specialist biography and historical period'
   assert.ok(titles.every(title=>!/ramanujan|meiji/i.test(title)));
 });
 
-test('short introductions take only enough paragraphs from the first section',async t=>{
+test('short introductions skip an empty section and cap the added prose',async t=>{
   const intro=extract.replace(' Early towers','\nEarly towers');
   const paragraphs=[
     'A third paragraph adds context and describes how the coastal signals were used by sailors.',
@@ -116,10 +116,15 @@ test('short introductions take only enough paragraphs from the first section',as
     'This paragraph is beyond the cap and must not be included in the puzzle text.',
   ];
   const html='<div class="mw-parser-output"><h2>History</h2>'+paragraphs.map(p=>'<p>'+p+'</p>').join('')+'</div>';
-  globalThis.document={createElement:()=>({
-    set innerHTML(value){assert.equal(value,html);},
-    content:{querySelector:()=>({querySelectorAll:()=>paragraphs.map(textContent=>({textContent,closest:()=>null,querySelectorAll:()=>[]}))})}
-  })};
+  globalThis.document={createElement:()=>{
+    let markup='';
+    return {
+      set innerHTML(value){markup=value;},
+      content:{querySelector:()=>({querySelectorAll:()=>markup===html
+        ?paragraphs.map(textContent=>({textContent,closest:()=>null,querySelectorAll:()=>[]}))
+        :[]})}
+    };
+  }};
   t.after(()=>{delete globalThis.document;});
   const calls=[];
   t.mock.method(globalThis,'fetch',async url=>{
@@ -127,7 +132,7 @@ test('short introductions take only enough paragraphs from the first section',as
     calls.push(params);
     return {ok:true,json:async()=>params.has('exintro')
       ?response(page('Lighthouse',{extract:intro}))
-      :{parse:{text:html}}};
+      :{parse:{text:params.get('section')==='1'?'<p></p>':html}}};
   });
   const article=await fetchTitle('Lighthouse');
   assert.equal(article.extract.split('\n\n').length,4);
@@ -136,6 +141,7 @@ test('short introductions take only enough paragraphs from the first section',as
   assert.equal(calls[0].has('exchars'),false);
   assert.equal(calls[1].get('action'),'parse');
   assert.equal(calls[1].get('section'),'1');
+  assert.equal(calls[2].get('section'),'2');
 });
 
 test('unavailable continuation leaves a short playable lead',async t=>{

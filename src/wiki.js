@@ -1,6 +1,6 @@
 import {ARTICLES, PRACTICE} from './articles.js';
-import {seedIndex} from './core.js?v=18';
-import {candidateOrder,titleKey} from './pool.js?v=18';
+import {seedIndex} from './core.js?v=19';
+import {candidateOrder,titleKey} from './pool.js?v=19';
 
 function wikiHost(language){return language==='de'?'https://de.wikipedia.org':'https://en.wikipedia.org';}
 class UnsuitableArticle extends Error {}
@@ -66,20 +66,24 @@ function firstSectionParagraphs(html){
 }
 async function extendArticle(article,signal){
   if(article.extract.length>=1200||article.extract.split('\n\n').length>=3)return article;
+  let result=article;
   try{
     const deadline=AbortSignal.timeout(3500);
     const extensionSignal=signal?AbortSignal.any([signal,deadline]):deadline;
-    const params=new URLSearchParams({action:'parse',page:article.title,section:'1',prop:'text',disabletoc:'1',format:'json',formatversion:'2',origin:'*'});
-    const json=await request(`${wikiHost(article.language)}/w/api.php?${params}`,extensionSignal);
-    const html=json?.parse?.text;
-    if(typeof html!=='string'||!html||typeof document==='undefined')return article;
-    const sections=firstSectionParagraphs(html);
-    if(!sections.length)return article;
-    return {...article,extract:excerpt([article.extract,...sections].join('\n\n'),article.language)};
+    for(const section of ['1','2']){
+      const params=new URLSearchParams({action:'parse',page:article.title,section,prop:'text',disabletoc:'1',format:'json',formatversion:'2',origin:'*'});
+      const json=await request(`${wikiHost(article.language)}/w/api.php?${params}`,extensionSignal);
+      const html=json?.parse?.text;
+      if(typeof html!=='string'||typeof document==='undefined')break;
+      const paragraphs=firstSectionParagraphs(html);
+      const extract=excerpt([result.extract,...paragraphs].join('\n\n'),article.language);
+      result={...article,extract};
+      if(extract.split('\n\n').length>=3||extract.length>=1200)break;
+    }
   }catch(error){
     if(signal?.aborted)throw error;
-    return article;
   }
+  return result;
 }
 export async function fetchTitle(title,signal,language='en'){
   const data=await request(queryUrl({titles:title,exintro:'1'},language),signal);
