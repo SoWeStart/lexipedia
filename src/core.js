@@ -92,12 +92,23 @@ export function relativeEmbeddingScores(candidates){
     [word,similarity,similarity-baseline-.45*(typicality-typical)])
     .sort((a,b)=>b[2]-a[2]);
 }
-export function rankEmbeddingHints(relativeScores,context,language='en',topic=0){
+export function rankEmbeddingHints(relativeScores,context,language='en',topic=0,sentenceScores=[],wordSentences){
   const [contextFloor,wordFloor,prominenceFloor]=language==='de'?[.22,.5,.09]:[.10,.4,.16];
   if(!Number.isFinite(context)||context<contextFloor)return [];
   const supportedFloor=wordFloor-(topic>=.45?.025:0);
+  const bestSentence=Math.max(...sentenceScores);
+  const localized=sentenceScores.length>1&&bestSentence-median(sentenceScores)>=.10;
+  const strongWordFloor=language==='de'?.72:.64;
   return relativeScores
+    .map(([word,similarity,prominence])=>{
+      const occurrences=wordSentences?.get(word);
+      if(!localized||!occurrences?.length||similarity>=strongWordFloor)return [word,similarity,prominence];
+      const support=Math.max(...occurrences.map(index=>sentenceScores[index]));
+      const penalty=Math.min(.09,.55*Math.max(0,bestSentence-support-.08));
+      return [word,similarity,prominence-penalty];
+    })
     .filter(([,similarity,prominence])=>similarity>=supportedFloor&&prominence>=prominenceFloor)
+    .sort((a,b)=>b[2]-a[2])
     .slice(0,topic<.30?3:6)
     .map(([word,,prominence])=>[word,Math.min(.67,.38+(prominence-prominenceFloor)*.9)]);
 }

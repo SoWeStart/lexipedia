@@ -132,6 +132,14 @@ test('borderline topic scores require lexical evidence across the article',()=>{
   assert.ok(topicCloseness(.15,.25,[.17,.13],'en',.27)>0);
 });
 
+test('sentence support demotes a weak match and preserves strong word evidence',()=>{
+  const words=[['weak',.54,.18],['strong',.75,.17],['local',.51,.16]];
+  const occurrences=new Map([['weak',[1]],['strong',[1]],['local',[0]]]);
+  const rank=scores=>rankEmbeddingHints(words,.4,'en',.4,scores,occurrences).map(([word])=>word);
+  assert.deepEqual(rank([.53,.21,.20]),['strong','local']);
+  assert.deepEqual(rank([.40,.39,.38]),['weak','strong','local']);
+});
+
 test('topic support can admit a borderline word without accepting generic matches',()=>{
   const words=relativeEmbeddingScores([['borderline',.39,.2],['generic',.39,.8],...Array.from({length:8},(_,i)=>['background'+i,.2,.2])]);
   assert.deepEqual(rankEmbeddingHints(words,.3),[]);

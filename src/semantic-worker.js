@@ -1,9 +1,10 @@
 /* Isolates model loading/inference from the UI thread. All inference is local in the browser. */
-import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints, topicCloseness, relativeEmbeddingScores} from './core.js?v=14';
-import {prepareSpelling,spellingIssue} from './spelling.js?v=14';
+import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints, topicCloseness, relativeEmbeddingScores} from './core.js?v=15';
+import {prepareSpelling,spellingIssue} from './spelling.js?v=15';
 
 let currentEpoch=0, language='en', targetWords=[], extractedVectors=new Map(), extractor=null, modelReady=false;
 let articleVector=null, titleVector=null, passageVectors=[], typicalities=new Map();
+let sentenceVectors=[],wordSentences=new Map();
 const MODELS={en:'Xenova/all-MiniLM-L6-v2',de:'Xenova/paraphrase-multilingual-MiniLM-L12-v2'};
 const modelPromises=new Map();
 
@@ -46,7 +47,9 @@ function ensureModel(lang){
 async function init(epoch,text,title,lang){
   currentEpoch=epoch;
   language=lang;
-  targetWords=uniqueWords(text.replace(/\[[^\]\n]+\]/g,' '),lang);
+  const prose=text.replace(/\[[^\]\n]+\]/g,' ');
+  targetWords=uniqueWords(prose,lang);
+  sentenceVectors=[];wordSentences=new Map();
   extractedVectors=new Map();
   articleVector=null;titleVector=null;passageVectors=[];typicalities=new Map();
   modelReady=false;
@@ -69,7 +72,23 @@ async function init(epoch,text,title,lang){
     const [context]=await embedBatch(model,[text.slice(0,1000)]);
     if(epoch!==currentEpoch)return;
     const [headline,...sections]=await embedBatch(model,[title,...passages]);
+    if(epoch!==currentEpoch)return;
+    const sentences=typeof Intl.Segmenter==='function'
+      ?[...new Intl.Segmenter(lang,{granularity:'sentence'}).segment(prose)].map(({segment})=>segment.trim()).filter(Boolean)
+      :[];
+    const contexts=[];
+    for(let index=0;index<sentences.length;index+=6){
+      contexts.push(...await embedBatch(model,sentences.slice(index,index+6)));
+      if(epoch!==currentEpoch)return;
+    }
     if(epoch===currentEpoch){
+      sentenceVectors=contexts;
+      sentences.forEach((sentence,index)=>{
+        for(const word of uniqueWords(sentence,lang)){
+          if(!wordSentences.has(word))wordSentences.set(word,[]);
+          wordSentences.get(word).push(index);
+        }
+      });
       articleVector=context;
       titleVector=headline;
       passageVectors=sections;
@@ -107,7 +126,8 @@ async function score(epoch,guess,requestId,checkSpelling){
       const leaders=relative.slice(0,4);
       const evidence=leaders.length===4?leaders.reduce((sum,[,,prominence])=>sum+prominence,0)/4:0;
       topic=topicCloseness(context,dotProduct(vector,titleVector),passageVectors.map(passage=>dotProduct(vector,passage)),language,evidence);
-      for(const [target,similarity] of rankEmbeddingHints(relative,context,language,topic))scores[target]=similarity;
+      const sentenceScores=sentenceVectors.map(sentence=>dotProduct(vector,sentence));
+      for(const [target,similarity] of rankEmbeddingHints(relative,context,language,topic,sentenceScores,wordSentences))scores[target]=similarity;
     }catch{if(epoch===currentEpoch)post('ready',{mode:'basic'});}
   }
   if(epoch===currentEpoch)post('score',{requestId,guess:word,scores,topic});
