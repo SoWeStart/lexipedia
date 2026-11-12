@@ -4,7 +4,7 @@ import {POOL,GERMAN_POOL,candidateOrder,titleKey} from '../src/pool.js';
 import {fetchCuratedArticle,fetchTitle,parseWikiResponse,practiceArticle} from '../src/wiki.js';
 
 const extract='A lighthouse guides ships along a coast by projecting a beam across the water. Sailors use these signals to navigate safely past rocky shores, shallow reefs, and narrow harbor entrances. Early towers burned wood or oil to produce light after sunset. Modern equipment uses electric lamps and lenses to concentrate the beam and make it visible from a greater distance. Each station can transmit a distinct pattern of flashes. Mariners compare that pattern with nautical charts to identify their position and plan a safe approach through fog, storms, or darkness.';
-const page=(title,overrides={})=>({title,ns:0,extract,...overrides});
+const page=(title,overrides={})=>({title,ns:0,extract:extract.replace(' Early towers','\nEarly towers').replace(' Each station','\nEach station'),...overrides});
 const response=p=>({query:{pages:[p]}});
 
 test('curated pool has unique titles and rotates through every candidate before recycling',()=>{
@@ -106,4 +106,30 @@ test('new rounds prefer a different topic over a recently played translation',as
 test('both pools exclude the flagged specialist biography and historical period',()=>{
   const titles=[...Object.values(POOL).flat(2),...Object.values(GERMAN_POOL).flat(2)];
   assert.ok(titles.every(title=>!/ramanujan|meiji/i.test(title)));
+});
+
+test('short introductions take only enough paragraphs from the first section',async t=>{
+  const intro=extract.replace(' Early towers','\nEarly towers');
+  const section='A third paragraph adds context.\nA fourth paragraph adds another detail.\nThis paragraph is beyond the cap.';
+  const calls=[];
+  t.mock.method(globalThis,'fetch',async url=>{
+    const params=new URL(url).searchParams;
+    calls.push(params);
+    const body=params.has('exintro')?intro:intro+'\n== History ==\n'+section+'\n== Later section ==\nUnrelated detail.';
+    return {ok:true,json:async()=>response(page('Lighthouse',{extract:body}))};
+  });
+  const article=await fetchTitle('Lighthouse');
+  assert.equal(article.extract.split('\n\n').length,4);
+  assert.match(article.extract,/fourth paragraph/);
+  assert.doesNotMatch(article.extract,/History|beyond the cap|Unrelated detail/);
+  assert.equal(calls[0].has('exchars'),false);
+  assert.equal(calls[1].get('exsentences'),'10');
+});
+
+test('long excerpts stop on a complete sentence within the character limit',()=>{
+  const short='This is a complete opening sentence.';
+  const longParagraph=short+' '+('More historical details are available. '.repeat(90));
+  const article=parseWikiResponse(response(page('Lighthouse',{extract:longParagraph})));
+  assert.ok(article.extract.length<=2400);
+  assert.ok(article.extract.endsWith('available.'));
 });

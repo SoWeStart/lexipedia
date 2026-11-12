@@ -1,6 +1,6 @@
 /* Isolates model loading/inference from the UI thread. All inference is local in the browser. */
-import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints, topicCloseness, relativeEmbeddingScores} from './core.js?v=16';
-import {prepareSpelling,spellingIssue} from './spelling.js?v=16';
+import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints, topicCloseness, relativeEmbeddingScores} from './core.js?v=17';
+import {prepareSpelling,spellingIssue} from './spelling.js?v=17';
 
 let currentEpoch=0, language='en', targetWords=[], extractedVectors=new Map(), extractor=null, modelReady=false;
 let articleVector=null, titleVector=null, passageVectors=[], typicalities=new Map();
@@ -64,7 +64,7 @@ async function init(epoch,text,title,lang){
       if(epoch!==currentEpoch)return;
       batch.forEach((word,j)=>extractedVectors.set(word,vectors[j]));
     }
-    const words=text.slice(0,1000).trim().split(/\s+/);
+    const words=text.trim().split(/\s+/);
     const passages=[];
     for(let index=0;index<words.length-14;index+=45){
       passages.push(words.slice(index,index+55).join(' '));
