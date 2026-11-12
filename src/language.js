@@ -27,6 +27,7 @@ export const strings = {
     semanticLoading:'Ähnlichkeit wird nachgetragen, sobald das Sprachmodell bereit ist.',
     semanticUnavailable:'Ähnlichkeit vorübergehend nicht verfügbar. Exakte Treffer zählen.',
     guessSummary:summary=>summary, topicLead:'Thematische Spur', topicRelated:'Im Themenfeld', topicNear:'Thematisch nah',
+    bestTopic:guess=>`${guess} · Stärkste Themenspur`,
   },
   en: {
     language:'Language', help:'How to play', close:'Close', controls:'Game controls', stats:'Game statistics',
@@ -56,5 +57,6 @@ export const strings = {
     semanticLoading:'Similarity hints will appear when the language model is ready.',
     semanticUnavailable:'Similarity is temporarily unavailable. Exact matches still count.',
     guessSummary:summary=>summary, topicLead:'Topic clue', topicRelated:'Related topic', topicNear:'Close to the topic',
+    bestTopic:guess=>`${guess} · Strongest topic clue`,
   },
 };

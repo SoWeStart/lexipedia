@@ -1,6 +1,6 @@
 import {ARTICLES, PRACTICE} from './articles.js';
-import {seedIndex} from './core.js?v=12';
-import {candidateOrder,titleKey} from './pool.js?v=12';
+import {seedIndex} from './core.js?v=13';
+import {candidateOrder,titleKey} from './pool.js?v=13';
 
 function wikiHost(language){return language==='de'?'https://de.wikipedia.org':'https://en.wikipedia.org';}
 class UnsuitableArticle extends Error {}

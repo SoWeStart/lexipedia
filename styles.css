@@ -32,3 +32,4 @@
 .word.letter-clue,.masked-title .word.letter-clue{height:auto;padding:0 .28em;color:#ffe1a1;background:#313530;font-weight:700}
 .word.letter-clue.length-peek{font-size:inherit}
 .word.revealed,.masked-title .word.revealed{display:inline;color:inherit;background:none;padding:0;margin:0}
+.history-item.best-topic{border-inline-start:2px solid var(--accent);padding-inline-start:6px}

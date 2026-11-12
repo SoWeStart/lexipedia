@@ -71,6 +71,15 @@ export function topicCloseness(article,title,passages,language='en',evidence){
   const relevance=.8*context+.2*Math.min(title,context+.20)+boost;
   const [floor,range]=language==='de'?[.16,.38]:[.115,.32];
   const score=Math.max(0,Math.min(1,(relevance-floor)/range));
+  // Weak feedback needs support from both the text and several standout words.
+  if(score>0 && score<=.35 && evidence!==undefined){
+    const [articleWeight,contextWeight,titleWeight,wordWeight,minimum]=language==='de'
+      ?[4.62,4.47,4.14,4.34,3.27]
+      :[4.19,4.77,5.26,6.31,3.50];
+    const support=articleWeight*article+contextWeight*context+
+      titleWeight*Math.min(title,context+.20)+wordWeight*evidence;
+    if(support<minimum)return 0;
+  }
   return score<.10&&evidence!==undefined&&evidence<.14?0:score;
 }
 export function relativeEmbeddingScores(candidates){

@@ -106,6 +106,11 @@ test('topic hints strengthen when title, article and passages agree',()=>{
   assert.equal(topicCloseness(.02,.05,[.02,.03,.45],'en'),0);
 });
 
+test('borderline topic scores require lexical evidence across the article',()=>{
+  assert.equal(topicCloseness(.15,.25,[.17,.13],'en',.10),0);
+  assert.ok(topicCloseness(.15,.25,[.17,.13],'en',.27)>0);
+});
+
 test('topic support can admit a borderline word without accepting generic matches',()=>{
   const words=relativeEmbeddingScores([['borderline',.39,.2],['generic',.39,.8],...Array.from({length:8},(_,i)=>['background'+i,.2,.2])]);
   assert.deepEqual(rankEmbeddingHints(words,.3),[]);
