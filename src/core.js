@@ -56,20 +56,24 @@ export function isSemanticCandidate(value,language='en') {
   // Short terms are often pronouns, auxiliary verbs or unreliable model subwords.
   return [...w].length>=3;
 }
-/** Calibrate a sentence embedding used out of distribution on single words.
- * Raw values below 0.69 are too noisy; explicit graph relations are preferred. */
-export function calibratedEmbeddingScore(raw) {
-  const cosine=Number(raw);
-  if (!Number.isFinite(cosine) || cosine<0.69) return 0;
-  return Math.min(0.93, Math.max(0, (cosine-0.55)*2.75));
+function median(values){
+  const sorted=[...values].sort((a,b)=>a-b);
+  const middle=Math.floor(sorted.length/2);
+  return sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2;
 }
-export function rankEmbeddingHints(candidates){
-  const ranked=candidates.filter(([,similarity])=>Number.isFinite(similarity)&&similarity>=.73)
-    .sort((a,b)=>b[1]-a[1]);
-  if(!ranked.length)return [];
-  const cutoff=ranked[0][1]-.10;
-  return ranked.filter(([,similarity])=>similarity>=cutoff).slice(0,6)
-    .map(([word,similarity])=>[word,Math.min(.67,calibratedEmbeddingScore(similarity))]);
+export function rankEmbeddingHints(candidates,context,language='en'){
+  const [contextFloor,wordFloor,prominenceFloor]=language==='de'?[.22,.5,.09]:[.10,.4,.16];
+  if(!Number.isFinite(context)||context<contextFloor)return [];
+  const valid=candidates.filter(([,similarity,typicality])=>Number.isFinite(similarity)&&Number.isFinite(typicality));
+  if(!valid.length)return [];
+  const baseline=median(valid.map(([,similarity])=>similarity));
+  const typical=median(valid.map(([, ,typicality])=>typicality));
+  // Prefer words that stand out from the rest of the article for this guess.
+  return valid.map(([word,similarity,typicality])=>
+    [word,similarity,similarity-baseline-.45*(typicality-typical)])
+    .filter(([,similarity,prominence])=>similarity>=wordFloor&&prominence>=prominenceFloor)
+    .sort((a,b)=>b[2]-a[2]).slice(0,6)
+    .map(([word,,prominence])=>[word,Math.min(.67,.38+(prominence-prominenceFloor)*.9)]);
 }
 
 export function sameWord(a,b,language='en') {

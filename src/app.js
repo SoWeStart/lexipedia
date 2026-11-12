@@ -1,12 +1,12 @@
-import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=10';
-import {strings} from './language.js?v=10';
-import {titleKey} from './pool.js?v=10';
-import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=10';
+import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=11';
+import {strings} from './language.js?v=11';
+import {titleKey} from './pool.js?v=11';
+import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=11';
 
 const $=id=>document.getElementById(id);
 const ui={form:$('guessForm'),input:$('guessInput'),submit:$('submitButton'),message:$('message'),history:$('history'),guessCount:$('guessCount'),elapsed:$('elapsed'),titleProgress:$('titleProgress'),maskedTitle:$('maskedTitle'),articleText:$('articleText'),articleBadge:$('articleBadge'),sourceLink:$('sourceLink')};
 const STORE_PREFIX='lexipedia:v1:';
-const SEMANTIC_VERSION=7;
+const SEMANTIC_VERSION=8;
 let round=null,activeRoute='',epoch=0,controller=null,worker=null,serial=0,pending=new Map(),busy=false;
 let choosingClue=false;
 let unrecognizedWord='';
@@ -143,7 +143,7 @@ function prepareSemantic(){
 }
 function ensureWorker(){
   try{
-    worker=new Worker(new URL('./semantic-worker.js?v=10',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./semantic-worker.js?v=11',import.meta.url),{type:'module'});
     worker.onmessage=e=>{
       const d=e.data;
       if(d.epoch!==epoch)return;

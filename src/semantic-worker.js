@@ -1,8 +1,9 @@
 /* Isolates model loading/inference from the UI thread. All inference is local in the browser. */
-import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints} from './core.js?v=10';
-import {prepareSpelling,spellingIssue} from './spelling.js?v=10';
+import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints} from './core.js?v=11';
+import {prepareSpelling,spellingIssue} from './spelling.js?v=11';
 
 let currentEpoch=0, language='en', targetWords=[], extractedVectors=new Map(), extractor=null, modelReady=false;
+let articleVector=null, typicalities=new Map();
 const MODELS={en:'Xenova/all-MiniLM-L6-v2',de:'Xenova/paraphrase-multilingual-MiniLM-L12-v2'};
 const modelPromises=new Map();
 
@@ -10,14 +11,26 @@ function post(type,payload={}) {self.postMessage({type,epoch:currentEpoch,...pay
 function uniqueWords(input,lang){
   return [...new Set(tokenize(input).filter(isWord).map(normalizeWord).filter(w=>w.length<=42 && isSemanticCandidate(w,lang)))];
 }
-function cosine(a,b){
+function dotProduct(a,b){
   if(!a||!b||a.length!==b.length)return 0;
   let dot=0;for(let i=0;i<a.length;i++)dot+=a[i]*b[i];
-  return Math.max(0,Math.min(1,dot));
+  return dot;
 }
 async function embedBatch(model,words){
   const output=await model(words,{pooling:'mean',normalize:true});
   return output.tolist();
+}
+function wordInput(word,lang){
+  return lang==='de'?word[0].toLocaleUpperCase('de')+word.slice(1):word;
+}
+function getTypicalities(vectors){
+  const first=vectors.values().next().value;
+  if(!first)return new Map();
+  const mean=new Float64Array(first.length);
+  for(const vector of vectors.values()){
+    for(let i=0;i<mean.length;i++)mean[i]+=vector[i]/vectors.size;
+  }
+  return new Map([...vectors].map(([word,vector])=>[word,dotProduct(vector,mean)]));
 }
 function ensureModel(lang){
   if(!modelPromises.has(lang)){
@@ -35,6 +48,7 @@ async function init(epoch,text,lang){
   language=lang;
   targetWords=uniqueWords(text,lang);
   extractedVectors=new Map();
+  articleVector=null;typicalities=new Map();
   modelReady=false;
   void prepareSpelling(lang);
   try{
@@ -43,11 +57,14 @@ async function init(epoch,text,lang){
     for(let i=0;i<targetWords.length;i+=12){
       if(epoch!==currentEpoch)return;
       const batch=targetWords.slice(i,i+12);
-      const vectors=await embedBatch(model,batch);
+      const vectors=await embedBatch(model,batch.map(word=>wordInput(word,lang)));
       if(epoch!==currentEpoch)return;
       batch.forEach((word,j)=>extractedVectors.set(word,vectors[j]));
     }
+    const [context]=await embedBatch(model,[text.slice(0,1000)]);
     if(epoch===currentEpoch){
+      articleVector=context;
+      typicalities=getTypicalities(extractedVectors);
       extractor=model;
       modelReady=true;
       post('ready',{mode:'model'});
@@ -71,11 +88,12 @@ async function score(epoch,guess,requestId,checkSpelling){
   const scores=Object.create(null);
   if(modelReady&&candidate){
     try {
-      const vector=(await embedBatch(extractor,[word]))[0];
+      const vector=(await embedBatch(extractor,[wordInput(word,language)]))[0];
       if(epoch!==currentEpoch)return;
       const comparisons=targetWords.filter(target=>!sameWord(word,target,language))
-        .map(target=>[target,cosine(vector,extractedVectors.get(target))]);
-      for(const [target,similarity] of rankEmbeddingHints(comparisons))scores[target]=similarity;
+        .map(target=>[target,dotProduct(vector,extractedVectors.get(target)),typicalities.get(target)]);
+      const context=dotProduct(vector,articleVector);
+      for(const [target,similarity] of rankEmbeddingHints(comparisons,context,language))scores[target]=similarity;
     }catch{if(epoch===currentEpoch)post('ready',{mode:'basic'});}
   }
   if(epoch===currentEpoch)post('score',{requestId,guess:word,scores,mode:modelReady?'model':'basic'});

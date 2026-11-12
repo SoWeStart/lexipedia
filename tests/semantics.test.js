@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {isSemanticCandidate, calibratedEmbeddingScore, rankEmbeddingHints, createRound, applyGuess, tokenState, mergeHints, useClue, revealRound, CLUE_LIMIT, getTitleProgress} from '../src/core.js';
+import {isSemanticCandidate, rankEmbeddingHints, createRound, applyGuess, tokenState, mergeHints, useClue, revealRound, CLUE_LIMIT, getTitleProgress} from '../src/core.js';
 
 test('function words never become semantic hints even with pathological model scores',()=>{
   const round=createRound({title:'Mosquito',extract:'A mosquito is an animal, and the insect flies.'});
@@ -25,13 +25,9 @@ test('different output sources cannot bypass grammatical filtering',()=>{
   assert.deepEqual(Object.keys(round.hints),['bird']);
 });
 
-test('only content word pairs use raw embedding scores, with conservative calibration',()=>{
+test('only content words are eligible for model hints',()=>{
   for(const w of ['a','an','is','are','the','of','and','some','to','with','they','because','two'])assert.equal(isSemanticCandidate(w),false,w);
   for(const w of ['biology','insect','mosquito','animal','fly','physics','music'])assert.equal(isSemanticCandidate(w),true,w);
-  assert.equal(calibratedEmbeddingScore(.40),0);
-  assert.equal(calibratedEmbeddingScore(.65),0);
-  assert.ok(calibratedEmbeddingScore(.8)>.38);
-  assert.ok(calibratedEmbeddingScore(.9)>calibratedEmbeddingScore(.8));
 });
 
 test('nearby years show the guess and closer guesses replace it',()=>{
@@ -86,14 +82,18 @@ test('three individual letter clues persist and revealing the article ends the r
 });
 
 test('model hints retain strong candidates and bound the number of matches',()=>{
-  const ranked=rankEmbeddingHints([
-    ['generic',.72],['distant',.75],['strongest',.91],
-    ...Array.from({length:8},(_,i)=>['related'+i,.85-i*.002]),
-  ]);
+  const scores=[
+    ['generic',.52,.9],['distant',.35,.3],['strongest',.91,.3],
+    ...Array.from({length:8},(_,i)=>['related'+i,.85-i*.002,.3]),
+    ...Array.from({length:12},(_,i)=>['background'+i,.26,.3]),
+  ];
+  const ranked=rankEmbeddingHints(scores,.3);
   assert.equal(ranked[0][0],'strongest');
   assert.equal(ranked.length,6);
   assert.ok(ranked.every(([,score])=>score<=.67));
   assert.ok(ranked.every(([word])=>word!=='generic'&&word!=='distant'));
+  assert.deepEqual(rankEmbeddingHints(scores,.02),[]);
+  assert.deepEqual(rankEmbeddingHints(Array.from({length:20},(_,i)=>['word'+i,.85,.7]),.5,'de'),[]);
 });
 
 test('showing the text after a win preserves the win and its time',()=>{
