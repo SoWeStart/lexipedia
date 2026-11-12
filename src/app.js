@@ -1,16 +1,17 @@
-import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=11';
-import {strings} from './language.js?v=11';
-import {titleKey} from './pool.js?v=11';
-import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=11';
+import {normalizeWord, tokenState, tokenize, isWord, createRound, getTitleProgress, applyGuess, mergeHints, sameWord, isSemanticCandidate, formatElapsed, encodeTitle, decodeTitle, CLUE_LIMIT, useClue, revealRound} from './core.js?v=12';
+import {strings} from './language.js?v=12';
+import {titleKey} from './pool.js?v=12';
+import {fetchSeededArticle,fetchCuratedArticle,fetchTitle,practiceArticle} from './wiki.js?v=12';
 
 const $=id=>document.getElementById(id);
 const ui={form:$('guessForm'),input:$('guessInput'),submit:$('submitButton'),message:$('message'),history:$('history'),guessCount:$('guessCount'),elapsed:$('elapsed'),titleProgress:$('titleProgress'),maskedTitle:$('maskedTitle'),articleText:$('articleText'),articleBadge:$('articleBadge'),sourceLink:$('sourceLink')};
 const STORE_PREFIX='lexipedia:v1:';
-const SEMANTIC_VERSION=8;
+const SEMANTIC_VERSION=9;
 let round=null,activeRoute='',epoch=0,controller=null,worker=null,serial=0,pending=new Map(),busy=false;
 let choosingClue=false;
 let unrecognizedWord='';
 let semanticStatus='loading';
+let replayQueue=[];
 const lastRoutes=new Map();
 
 function safeStorageGet(key){try{return localStorage.getItem(key)}catch{return null}}
@@ -125,6 +126,7 @@ function loadSaved(key){try{
   if(r.revealed && r.abandoned===undefined)r.abandoned=!getTitleProgress(r).complete;
   if(r.semanticVersion!==SEMANTIC_VERSION){
     r.hints={}; r.semanticVersion=SEMANTIC_VERSION;
+    r.topics={};
     for(const guess of r.guesses)mergeHints(r,guess);
   }
   return r;
@@ -139,11 +141,15 @@ function prepareSemantic(){
   const current=epoch;
   semanticStatus=worker?'loading':'unavailable';
   round.semanticVersion=SEMANTIC_VERSION;
-  if(worker){worker.postMessage({type:'init',epoch:current,text:round.extract,language:round.language});}
+  if(worker){worker.postMessage({type:'init',epoch:current,text:round.extract,title:round.title,language:round.language});}
+}
+function replayNext(){
+  if(busy||!replayQueue.length||[...pending.values()].some(request=>request.replay))return;
+  requestScore(replayQueue.shift(),true);
 }
 function ensureWorker(){
   try{
-    worker=new Worker(new URL('./semantic-worker.js?v=11',import.meta.url),{type:'module'});
+    worker=new Worker(new URL('./semantic-worker.js?v=12',import.meta.url),{type:'module'});
     worker.onmessage=e=>{
       const d=e.data;
       if(d.epoch!==epoch)return;
@@ -151,22 +157,25 @@ function ensureWorker(){
         semanticStatus=d.mode==='model'?'ready':'unavailable';
         if(message.key==='semanticLoading'&&semanticStatus==='unavailable')showMessage('semanticUnavailable');
         if(d.mode==='model'){
-          for(const word of (round?.guesses||[])){
-            if(isSemanticCandidate(word,round.language))requestScore(word,true);
-          }
+          replayQueue=(round?.guesses??[]).filter(word=>isSemanticCandidate(word,round.language)&&!Object.hasOwn(round.topics??{},word));
+          replayNext();
+        }else{
+          replayQueue=[];
         }
         return;
       }
       if(d.type==='score'){
         const request=pending.get(d.requestId);if(!request)return;
         pending.delete(d.requestId);
+        if(Number.isFinite(d.topic))(round.topics??={})[d.guess]=d.topic;
         if(request.replay){
           mergeHints(round,d.guess,d.scores);save();renderArticle();renderHistory();
-          if(message.key==='semanticLoading' && round.guesses.at(-1)===d.guess){
-            showMessage('guessFeedback','',exactHits(d.guess),semanticHits(d.guess));
+          if(['semanticLoading','guessFeedback','guessSummary'].includes(message.key) && round.guesses.at(-1)===d.guess){
+            showGuessFeedback(d.guess);
           }
         }
         else finishGuess(d.guess,d.scores);
+        replayNext();
       }
       if(d.type==='spelling'){
         const request=pending.get(d.requestId);if(!request)return;
@@ -175,9 +184,11 @@ function ensureWorker(){
         setBusy(false);
         ui.input.value=request.original;ui.input.focus({preventScroll:true});
         showMessage(d.suggestion?'spellingSuggestion':'unknownWord','error',d.suggestion);
+        replayNext();
       }
     };
     worker.onerror=()=>{worker?.terminate();worker=null;
+      replayQueue=[];
       semanticStatus='unavailable';
       if(message.key==='semanticLoading')showMessage('semanticUnavailable');
       for(const request of pending.values())if(!request.replay)finishGuess(request.word,{});
@@ -275,6 +286,17 @@ function renderArticle(){
 }
 function exactHits(guess){return tokenize(round.extract).filter(x=>isWord(x)&&sameWord(x,guess,round.language)).length;}
 function semanticHits(guess){return Object.values(round.hints).filter(x=>x.guess===guess).length;}
+function topicLabel(guess){
+  const score=round.topics?.[guess];
+  return score>0?tr(score>=.82?'topicNear':score>=.42?'topicRelated':'topicLead'):'';
+}
+function showGuessFeedback(guess){
+  const exact=exactHits(guess),hints=semanticHits(guess),topic=topicLabel(guess);
+  if(topic){
+    const summary=[exact?tr('exactCount',exact):'',hints?tr('hintCount',hints):'',topic].filter(Boolean).join(' · ');
+    showMessage('guessSummary','',summary);
+  }else showMessage('guessFeedback','',exact,hints);
+}
 function renderHistory(){
   if(!round)return;
   const fragment=document.createDocumentFragment();
@@ -283,7 +305,7 @@ function renderHistory(){
     const row=document.createElement('div');row.className='history-item '+(ex?'found':ne?'related':'');
     const n=document.createElement('span');n.className='history-number';n.textContent=`${i+1}.`;
     const word=document.createElement('span');word.className='history-word';word.textContent=guess;
-    const count=document.createElement('span');count.className='history-meta';count.textContent=[ex?tr('exactCount',ex):'',ne?tr('hintCount',ne):''].filter(Boolean).join(' · ')||tr('noHit');
+    const count=document.createElement('span');count.className='history-meta';count.textContent=[ex?tr('exactCount',ex):'',ne?tr('hintCount',ne):'',topicLabel(guess)].filter(Boolean).join(' · ')||tr('noHit');
     row.append(n,word,count);fragment.append(row);
   }
   ui.history.replaceChildren(fragment);
@@ -306,7 +328,7 @@ function finishGuess(word,scores){
   const exact=exactHits(word),hints=semanticHits(word);
   if(!exact&&!hints&&!result.won&&isSemanticCandidate(word,round.language)&&semanticStatus!=='ready'){
     showMessage(semanticStatus==='loading'?'semanticLoading':'semanticUnavailable');
-  }else showMessage('guessFeedback','',exact,hints);
+  }else showGuessFeedback(word);
   if(result.won){choosingClue=false;setBusy(false);showWin();}
   ui.input.value='';ui.input.focus({preventScroll:true});
 }
@@ -323,7 +345,7 @@ async function startRound({route=null}={}){
   const previous=!route && round && (round.language??'en')===language?round:null;
   epoch++;const captured=epoch;
   if(controller)controller.abort();controller=new AbortController();
-  pending.clear();choosingClue=false;unrecognizedWord='';setBusy(true);articleStatus='';showMessage();ui.input.value='';
+  pending.clear();replayQueue=[];choosingClue=false;unrecognizedWord='';setBusy(true);articleStatus='';showMessage();ui.input.value='';
   let info=route;
   if(info?.key){activeRoute=info.key;const old=loadSaved(info.key);
     if(old){round=old;addSeen(old);save();$('newButton').disabled=false;setBusy(false);renderAll();prepareSemantic();return;}

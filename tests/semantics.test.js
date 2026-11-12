@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {isSemanticCandidate, rankEmbeddingHints, createRound, applyGuess, tokenState, mergeHints, useClue, revealRound, CLUE_LIMIT, getTitleProgress} from '../src/core.js';
+import {isSemanticCandidate, relativeEmbeddingScores, rankEmbeddingHints, topicCloseness, createRound, applyGuess, tokenState, mergeHints, useClue, revealRound, CLUE_LIMIT, getTitleProgress} from '../src/core.js';
 
 test('function words never become semantic hints even with pathological model scores',()=>{
   const round=createRound({title:'Mosquito',extract:'A mosquito is an animal, and the insect flies.'});
@@ -87,13 +87,29 @@ test('model hints retain strong candidates and bound the number of matches',()=>
     ...Array.from({length:8},(_,i)=>['related'+i,.85-i*.002,.3]),
     ...Array.from({length:12},(_,i)=>['background'+i,.26,.3]),
   ];
-  const ranked=rankEmbeddingHints(scores,.3);
+  const relative=relativeEmbeddingScores(scores);
+  const ranked=rankEmbeddingHints(relative,.3);
   assert.equal(ranked[0][0],'strongest');
   assert.equal(ranked.length,6);
   assert.ok(ranked.every(([,score])=>score<=.67));
   assert.ok(ranked.every(([word])=>word!=='generic'&&word!=='distant'));
-  assert.deepEqual(rankEmbeddingHints(scores,.02),[]);
-  assert.deepEqual(rankEmbeddingHints(Array.from({length:20},(_,i)=>['word'+i,.85,.7]),.5,'de'),[]);
+  assert.deepEqual(rankEmbeddingHints(relative,.02),[]);
+  assert.deepEqual(rankEmbeddingHints(relativeEmbeddingScores(Array.from({length:20},(_,i)=>['word'+i,.85,.7])),.5,'de'),[]);
+});
+
+test('topic hints strengthen when title, article and passages agree',()=>{
+  const weak=topicCloseness(.2,.4,[.19,.21,.12],'de');
+  const close=topicCloseness(.49,.55,[.47,.53,.29],'de');
+  assert.ok(weak>0&&weak<.42);
+  assert.ok(close>.82);
+  assert.equal(topicCloseness(.03,.95,[.04,.06,.02],'de'),0);
+  assert.equal(topicCloseness(.02,.05,[.02,.03,.45],'en'),0);
+});
+
+test('topic support can admit a borderline word without accepting generic matches',()=>{
+  const words=relativeEmbeddingScores([['borderline',.39,.2],['generic',.39,.8],...Array.from({length:8},(_,i)=>['background'+i,.2,.2])]);
+  assert.deepEqual(rankEmbeddingHints(words,.3),[]);
+  assert.deepEqual(rankEmbeddingHints(words,.3,'en',.6).map(([word])=>word),['borderline']);
 });
 
 test('showing the text after a win preserves the win and its time',()=>{

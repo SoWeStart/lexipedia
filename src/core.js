@@ -61,9 +61,19 @@ function median(values){
   const middle=Math.floor(sorted.length/2);
   return sorted.length%2?sorted[middle]:(sorted[middle-1]+sorted[middle])/2;
 }
-export function rankEmbeddingHints(candidates,context,language='en'){
-  const [contextFloor,wordFloor,prominenceFloor]=language==='de'?[.22,.5,.09]:[.10,.4,.16];
-  if(!Number.isFinite(context)||context<contextFloor)return [];
+export function topicCloseness(article,title,passages,language='en',evidence){
+  if(!Number.isFinite(article)||!Number.isFinite(title))return 0;
+  const ranked=passages.filter(Number.isFinite).sort((a,b)=>b-a).slice(0,2);
+  const passage=ranked.length?ranked.reduce((sum,value)=>sum+value,0)/ranked.length:article;
+  const context=.7*article+.3*passage;
+  // A short title is useful evidence only when the text supports it.
+  const boost=Math.min(.05,.24*Math.max(0,(evidence??0)-.17));
+  const relevance=.8*context+.2*Math.min(title,context+.20)+boost;
+  const [floor,range]=language==='de'?[.16,.38]:[.115,.32];
+  const score=Math.max(0,Math.min(1,(relevance-floor)/range));
+  return score<.10&&evidence!==undefined&&evidence<.14?0:score;
+}
+export function relativeEmbeddingScores(candidates){
   const valid=candidates.filter(([,similarity,typicality])=>Number.isFinite(similarity)&&Number.isFinite(typicality));
   if(!valid.length)return [];
   const baseline=median(valid.map(([,similarity])=>similarity));
@@ -71,8 +81,15 @@ export function rankEmbeddingHints(candidates,context,language='en'){
   // Prefer words that stand out from the rest of the article for this guess.
   return valid.map(([word,similarity,typicality])=>
     [word,similarity,similarity-baseline-.45*(typicality-typical)])
-    .filter(([,similarity,prominence])=>similarity>=wordFloor&&prominence>=prominenceFloor)
-    .sort((a,b)=>b[2]-a[2]).slice(0,6)
+    .sort((a,b)=>b[2]-a[2]);
+}
+export function rankEmbeddingHints(relativeScores,context,language='en',topic=0){
+  const [contextFloor,wordFloor,prominenceFloor]=language==='de'?[.22,.5,.09]:[.10,.4,.16];
+  if(!Number.isFinite(context)||context<contextFloor)return [];
+  const supportedFloor=wordFloor-(topic>=.45?.025:0);
+  return relativeScores
+    .filter(([,similarity,prominence])=>similarity>=supportedFloor&&prominence>=prominenceFloor)
+    .slice(0,6)
     .map(([word,,prominence])=>[word,Math.min(.67,.38+(prominence-prominenceFloor)*.9)]);
 }
 

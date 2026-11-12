@@ -1,9 +1,9 @@
 /* Isolates model loading/inference from the UI thread. All inference is local in the browser. */
-import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints} from './core.js?v=11';
-import {prepareSpelling,spellingIssue} from './spelling.js?v=11';
+import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints, topicCloseness, relativeEmbeddingScores} from './core.js?v=12';
+import {prepareSpelling,spellingIssue} from './spelling.js?v=12';
 
 let currentEpoch=0, language='en', targetWords=[], extractedVectors=new Map(), extractor=null, modelReady=false;
-let articleVector=null, typicalities=new Map();
+let articleVector=null, titleVector=null, passageVectors=[], typicalities=new Map();
 const MODELS={en:'Xenova/all-MiniLM-L6-v2',de:'Xenova/paraphrase-multilingual-MiniLM-L12-v2'};
 const modelPromises=new Map();
 
@@ -43,12 +43,12 @@ function ensureModel(lang){
   }
   return modelPromises.get(lang);
 }
-async function init(epoch,text,lang){
+async function init(epoch,text,title,lang){
   currentEpoch=epoch;
   language=lang;
   targetWords=uniqueWords(text,lang);
   extractedVectors=new Map();
-  articleVector=null;typicalities=new Map();
+  articleVector=null;titleVector=null;passageVectors=[];typicalities=new Map();
   modelReady=false;
   void prepareSpelling(lang);
   try{
@@ -61,9 +61,18 @@ async function init(epoch,text,lang){
       if(epoch!==currentEpoch)return;
       batch.forEach((word,j)=>extractedVectors.set(word,vectors[j]));
     }
+    const words=text.slice(0,1000).trim().split(/\s+/);
+    const passages=[];
+    for(let index=0;index<words.length-14;index+=45){
+      passages.push(words.slice(index,index+55).join(' '));
+    }
     const [context]=await embedBatch(model,[text.slice(0,1000)]);
+    if(epoch!==currentEpoch)return;
+    const [headline,...sections]=await embedBatch(model,[title,...passages]);
     if(epoch===currentEpoch){
       articleVector=context;
+      titleVector=headline;
+      passageVectors=sections;
       typicalities=getTypicalities(extractedVectors);
       extractor=model;
       modelReady=true;
@@ -86,6 +95,7 @@ async function score(epoch,guess,requestId,checkSpelling){
     if(issue){post('spelling',{requestId,...issue});return;}
   }
   const scores=Object.create(null);
+  let topic=null;
   if(modelReady&&candidate){
     try {
       const vector=(await embedBatch(extractor,[wordInput(word,language)]))[0];
@@ -93,13 +103,17 @@ async function score(epoch,guess,requestId,checkSpelling){
       const comparisons=targetWords.filter(target=>!sameWord(word,target,language))
         .map(target=>[target,dotProduct(vector,extractedVectors.get(target)),typicalities.get(target)]);
       const context=dotProduct(vector,articleVector);
-      for(const [target,similarity] of rankEmbeddingHints(comparisons,context,language))scores[target]=similarity;
+      const relative=relativeEmbeddingScores(comparisons);
+      const leaders=relative.slice(0,4);
+      const evidence=leaders.length===4?leaders.reduce((sum,[,,prominence])=>sum+prominence,0)/4:0;
+      topic=topicCloseness(context,dotProduct(vector,titleVector),passageVectors.map(passage=>dotProduct(vector,passage)),language,evidence);
+      for(const [target,similarity] of rankEmbeddingHints(relative,context,language,topic))scores[target]=similarity;
     }catch{if(epoch===currentEpoch)post('ready',{mode:'basic'});}
   }
-  if(epoch===currentEpoch)post('score',{requestId,guess:word,scores,mode:modelReady?'model':'basic'});
+  if(epoch===currentEpoch)post('score',{requestId,guess:word,scores,topic});
 }
 self.onmessage=e=>{
   const d=e.data;
-  if(d.type==='init')void init(d.epoch,d.text,d.language==='de'?'de':'en');
+  if(d.type==='init')void init(d.epoch,d.text,d.title,d.language==='de'?'de':'en');
   if(d.type==='score')void score(d.epoch,d.guess,d.requestId,d.checkSpelling);
 };

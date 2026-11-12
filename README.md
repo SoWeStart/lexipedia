@@ -26,6 +26,7 @@ A free, mobile-friendly, Wikipedia article word-discovery game with unlimited ro
 - The first model download can take time. Exact matches and nearby-year hints work during loading.
 - Sentence embeddings are designed mainly for sentences, so **word-level similarity needs evaluation**. Scores are not probabilities. This is an MVP requiring broader model-quality and mobile-device testing before claiming parity with Pedantle.
 - The semantic filter checks the guess against the article and ranks words relative to the other model scores in that article. It shows up to six model suggestions per guess.
+- Topic feedback compares the guess with the title, introduction and overlapping passages. A broad guess can receive topic feedback before it is close enough to uncover an individual word.
 - Hint mode reveals the first letter of a selected word, up to three times per round. Reveal shows the title and introduction and ends the round without a win.
 - After a win, **Show full text** fills in the introduction and keeps the win. If the local spell checker flags a guess, the input is kept for editing. Press Enter again to use the original spelling.
 - Shared links supply the same article but there is **no synchronized live multiplayer** or server-verified high-score leaderboard. Friends compare results manually.

@@ -5,6 +5,7 @@ export const strings = {
     word:'Deutsches Wort', guess:'Raten', hiddenTitle:'Verdeckter Wikipedia-Titel', source:'Wikipedia-Quelle ↗',
     helpGoal:'Errate den Titel mit deutschen Wörtern.',
     helpHints:'Grüne Wörter sind Treffer. Wörter auf dunklem Grund sind Hinweise.',
+    helpTopic:'Eine thematische Spur zeigt, dass dein Tipp in die richtige Richtung geht.',
     helpLength:'Tippe auf ein verdecktes Wort, um seine Länge zu sehen.',
     helpClue:'Mit „Tipp“ kannst du bis zu drei Anfangsbuchstaben aufdecken.',
     clue:'Tipp', chooseClue:'Wähle ein verdecktes Wort.', clueShown:letter=>`Anfangsbuchstabe ${letter}`,
@@ -25,6 +26,7 @@ export const strings = {
     unknownWord:'Unbekanntes Wort. Korrigiere es oder drücke erneut Enter.',
     semanticLoading:'Ähnlichkeit wird nachgetragen, sobald das Sprachmodell bereit ist.',
     semanticUnavailable:'Ähnlichkeit vorübergehend nicht verfügbar. Exakte Treffer zählen.',
+    guessSummary:summary=>summary, topicLead:'Thematische Spur', topicRelated:'Im Themenfeld', topicNear:'Thematisch nah',
   },
   en: {
     language:'Language', help:'How to play', close:'Close', controls:'Game controls', stats:'Game statistics',
@@ -32,6 +34,7 @@ export const strings = {
     word:'English word', guess:'Guess', hiddenTitle:'Hidden Wikipedia title', source:'Wikipedia source ↗',
     helpGoal:'Guess the title using English words.',
     helpHints:'Green words are matches. Words on a dark background are hints.',
+    helpTopic:'A topic clue means your guess is in the right area.',
     helpLength:'Tap a hidden word to see its length.',
     helpClue:'Use Hint to reveal up to three first letters.',
     clue:'Hint', chooseClue:'Choose a hidden word.', clueShown:letter=>`First letter ${letter}`,
@@ -52,5 +55,6 @@ export const strings = {
     unknownWord:'Unrecognized word. Edit it or press Enter again.',
     semanticLoading:'Similarity hints will appear when the language model is ready.',
     semanticUnavailable:'Similarity is temporarily unavailable. Exact matches still count.',
+    guessSummary:summary=>summary, topicLead:'Topic clue', topicRelated:'Related topic', topicNear:'Close to the topic',
   },
 };
