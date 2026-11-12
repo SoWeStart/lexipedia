@@ -1,6 +1,6 @@
 /* Isolates model loading/inference from the UI thread. All inference is local in the browser. */
-import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints, topicCloseness, relativeEmbeddingScores} from './core.js?v=17';
-import {prepareSpelling,spellingIssue} from './spelling.js?v=17';
+import {normalizeWord, tokenize, isWord, isSemanticCandidate, sameWord, rankEmbeddingHints, topicCloseness, relativeEmbeddingScores} from './core.js?v=18';
+import {prepareSpelling,spellingIssue} from './spelling.js?v=18';
 
 let currentEpoch=0, language='en', targetWords=[], extractedVectors=new Map(), extractor=null, modelReady=false;
 let articleVector=null, titleVector=null, passageVectors=[], typicalities=new Map();

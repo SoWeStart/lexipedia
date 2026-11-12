@@ -110,20 +110,39 @@ test('both pools exclude the flagged specialist biography and historical period'
 
 test('short introductions take only enough paragraphs from the first section',async t=>{
   const intro=extract.replace(' Early towers','\nEarly towers');
-  const section='A third paragraph adds context.\nA fourth paragraph adds another detail.\nThis paragraph is beyond the cap.';
+  const paragraphs=[
+    'A third paragraph adds context and describes how the coastal signals were used by sailors.',
+    'A fourth paragraph adds another detail about navigation at night and in bad weather.',
+    'This paragraph is beyond the cap and must not be included in the puzzle text.',
+  ];
+  const html='<div class="mw-parser-output"><h2>History</h2>'+paragraphs.map(p=>'<p>'+p+'</p>').join('')+'</div>';
+  globalThis.document={createElement:()=>({
+    set innerHTML(value){assert.equal(value,html);},
+    content:{querySelector:()=>({querySelectorAll:()=>paragraphs.map(textContent=>({textContent,closest:()=>null,querySelectorAll:()=>[]}))})}
+  })};
+  t.after(()=>{delete globalThis.document;});
   const calls=[];
   t.mock.method(globalThis,'fetch',async url=>{
     const params=new URL(url).searchParams;
     calls.push(params);
-    const body=params.has('exintro')?intro:intro+'\n== History ==\n'+section+'\n== Later section ==\nUnrelated detail.';
-    return {ok:true,json:async()=>response(page('Lighthouse',{extract:body}))};
+    return {ok:true,json:async()=>params.has('exintro')
+      ?response(page('Lighthouse',{extract:intro}))
+      :{parse:{text:html}}};
   });
   const article=await fetchTitle('Lighthouse');
   assert.equal(article.extract.split('\n\n').length,4);
   assert.match(article.extract,/fourth paragraph/);
   assert.doesNotMatch(article.extract,/History|beyond the cap|Unrelated detail/);
   assert.equal(calls[0].has('exchars'),false);
-  assert.equal(calls[1].get('exsentences'),'10');
+  assert.equal(calls[1].get('action'),'parse');
+  assert.equal(calls[1].get('section'),'1');
+});
+
+test('unavailable continuation leaves a short playable lead',async t=>{
+  t.mock.method(globalThis,'fetch',async url=>new URL(url).searchParams.has('exintro')
+    ?{ok:true,json:async()=>response(page('Lighthouse',{extract}))}
+    :{ok:false,status:503});
+  assert.equal((await fetchTitle('Lighthouse')).extract,extract);
 });
 
 test('long excerpts stop on a complete sentence within the character limit',()=>{

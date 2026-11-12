@@ -1,6 +1,6 @@
 import {ARTICLES, PRACTICE} from './articles.js';
-import {seedIndex} from './core.js?v=17';
-import {candidateOrder,titleKey} from './pool.js?v=17';
+import {seedIndex} from './core.js?v=18';
+import {candidateOrder,titleKey} from './pool.js?v=18';
 
 function wikiHost(language){return language==='de'?'https://de.wikipedia.org':'https://en.wikipedia.org';}
 class UnsuitableArticle extends Error {}
@@ -53,17 +53,29 @@ async function request(url,signal){
   if(!response.ok)throw new Error(`Wikipedia HTTP ${response.status}`);
   return response.json();
 }
+function firstSectionParagraphs(html){
+  const template=document.createElement('template');
+  template.innerHTML=html;
+  const section=template.content.querySelector('.mw-parser-output')??template.content;
+  return [...section.querySelectorAll('p')]
+    .filter(p=>!p.closest('table, figure, aside, nav, blockquote, .hatnote, .infobox, .thumb'))
+    .map(p=>{
+      p.querySelectorAll('sup.reference, .mw-editsection, .mw-math-element').forEach(node=>node.remove());
+      return cleanExtract(p.textContent.replace(/\s+/g,' '));
+    }).filter(p=>p.length>=60);
+}
 async function extendArticle(article,signal){
   if(article.extract.length>=1200||article.extract.split('\n\n').length>=3)return article;
   try{
     const deadline=AbortSignal.timeout(3500);
     const extensionSignal=signal?AbortSignal.any([signal,deadline]):deadline;
-    const json=await request(queryUrl({titles:article.title,prop:'extracts',exsentences:'10',exsectionformat:'wiki'},article.language),extensionSignal);
-    const extract=json?.query?.pages?.[0]?.extract;
-    if(typeof extract!=='string')return article;
-    const [,section]=cleanExtract(extract).split(/^={2,}[^\n]+={2,}[ \t]*$/gm);
-    if(!section?.trim())return article;
-    return {...article,extract:excerpt(article.extract+'\n\n'+section,article.language)};
+    const params=new URLSearchParams({action:'parse',page:article.title,section:'1',prop:'text',disabletoc:'1',format:'json',formatversion:'2',origin:'*'});
+    const json=await request(`${wikiHost(article.language)}/w/api.php?${params}`,extensionSignal);
+    const html=json?.parse?.text;
+    if(typeof html!=='string'||!html||typeof document==='undefined')return article;
+    const sections=firstSectionParagraphs(html);
+    if(!sections.length)return article;
+    return {...article,extract:excerpt([article.extract,...sections].join('\n\n'),article.language)};
   }catch(error){
     if(signal?.aborted)throw error;
     return article;
